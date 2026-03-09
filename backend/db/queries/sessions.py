@@ -13,7 +13,7 @@ def get_session(db: Database, session_id: str) -> dict | None:
 
 
 def list_sessions(db: Database) -> list[dict]:
-    return db.fetch_all("SELECT * FROM sessions ORDER BY created_at DESC")
+    return db.fetch_all("SELECT * FROM sessions ORDER BY created_at DESC, rowid DESC")
 
 
 def update_session_title(db: Database, session_id: str, title: str):
