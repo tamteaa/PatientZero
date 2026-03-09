@@ -1,6 +1,6 @@
 # PatientZero
 
-A disease spread simulation and analysis tool.
+Explaining Health: How AI Explanation Styles and Interaction Modalities Affect User Comprehension of Medical Information
 
 ## Getting Started
 
