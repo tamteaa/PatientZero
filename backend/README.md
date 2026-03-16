@@ -13,6 +13,7 @@ cp ../.env.example ../.env  # if not done already
 
 ```bash
 uv run uvicorn api.main:app --reload
+
 ```
 
 Server runs at http://localhost:8000
