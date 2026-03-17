@@ -15,7 +15,7 @@ def db(tmp_path):
 
 @pytest.fixture
 def mock_provider():
-    return MockProvider()
+    return MockProvider(delay=0)
 
 
 @pytest.fixture

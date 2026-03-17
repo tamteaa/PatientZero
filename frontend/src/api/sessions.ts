@@ -1,6 +1,8 @@
 import type { Session, SessionDetail } from '@/types/chat';
-import type { SimulationConfig } from '@/types/simulation';
+import type { Persona, Scenario, SimulationConfig, SimulationDetail, SimulationRole, SimulationSummary } from '@/types/simulation';
 import { client, API_BASE } from './client';
+
+// ── Sessions ────────────────────────────────────────────────────────────────
 
 export async function createSession(model: string = 'mock:default'): Promise<Session> {
   const { data } = await client.post('/sessions', { model });
@@ -26,10 +28,40 @@ export async function deleteSession(id: string): Promise<void> {
   await client.delete(`/sessions/${id}`);
 }
 
+// ── Models / Personas / Scenarios ───────────────────────────────────────────
+
 export async function listModels(): Promise<string[]> {
   const { data } = await client.get('/models');
   return data;
 }
+
+export async function listPersonas(): Promise<Persona[]> {
+  const { data } = await client.get('/personas');
+  return data;
+}
+
+export async function listScenarios(): Promise<Scenario[]> {
+  const { data } = await client.get('/scenarios');
+  return data;
+}
+
+// ── Simulations ─────────────────────────────────────────────────────────────
+
+export async function listSimulations(): Promise<SimulationSummary[]> {
+  const { data } = await client.get('/simulations');
+  return data;
+}
+
+export async function getSimulation(id: string): Promise<SimulationDetail> {
+  const { data } = await client.get(`/simulations/${id}`);
+  return data;
+}
+
+export async function deleteSimulation(id: string): Promise<void> {
+  await client.delete(`/simulations/${id}`);
+}
+
+// ── Chat SSE ────────────────────────────────────────────────────────────────
 
 export async function sendMessage(
   sessionId: string,
@@ -77,12 +109,14 @@ export async function sendMessage(
   onDone();
 }
 
+// ── Simulation SSE ──────────────────────────────────────────────────────────
+
 export async function runSimulation(
   config: SimulationConfig,
-  onTurnStart: (role: string, turn: number) => void,
+  onTurnStart: (role: SimulationRole, turn: number) => void,
   onToken: (token: string) => void,
-  onTurnEnd: (role: string) => void,
-  onDone: () => void,
+  onTurnEnd: (role: SimulationRole, turn: number) => void,
+  onDone: (simulationId: string) => void,
 ) {
   const response = await fetch(`${API_BASE}/simulate`, {
     method: 'POST',
@@ -114,17 +148,15 @@ export async function runSimulation(
         const raw = line.slice(5).trim();
         if (!raw) continue;
 
-        if (currentEvent === 'done') {
-          onDone();
-          return;
-        }
-
         try {
           const parsed = JSON.parse(raw);
           if (currentEvent === 'turn_start') {
-            onTurnStart(parsed.role, parsed.turn);
+            onTurnStart(parsed.role as SimulationRole, parsed.turn);
           } else if (currentEvent === 'turn_end') {
-            onTurnEnd(parsed.role);
+            onTurnEnd(parsed.role as SimulationRole, parsed.turn);
+          } else if (currentEvent === 'done') {
+            onDone(parsed.simulation_id);
+            return;
           } else if (parsed.token !== undefined) {
             onToken(parsed.token);
           }
@@ -135,5 +167,4 @@ export async function runSimulation(
       }
     }
   }
-  onDone();
 }

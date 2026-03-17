@@ -13,7 +13,7 @@ SCENARIO = Scenario(
 
 @pytest.fixture
 def provider():
-    return MockProvider()
+    return MockProvider(delay=0)
 
 
 def test_clinical_static_prompt(provider):

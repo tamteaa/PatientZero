@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
+from enum import Enum
 
 
 @dataclass
@@ -20,12 +21,45 @@ class Scenario:
     results: str
     normal_range: str
     significance: str
+    keywords: list[str] = field(default_factory=list)
+
+
+class SimulationStatus(Enum):
+    IDLE = "idle"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    ERROR = "error"
 
 
 @dataclass
 class Message:
     role: str
     content: str
+
+
+@dataclass
+class SimulationState:
+    """Full state of a simulation at any point in time."""
+
+    status: SimulationStatus
+    simulation_id: str | None = None
+    config: dict | None = None         # serialized SimulationConfig
+    messages: list[Message] = field(default_factory=list)
+    current_turn: int = 0
+    error: str | None = None
+
+
+@dataclass
+class TurnStartEvent:
+    role: str     # "explainer" | "patient"
+    turn: int     # 0-based index
+
+
+@dataclass
+class TurnEndEvent:
+    role: str     # "explainer" | "patient"
+    turn: int
 
 
 @dataclass

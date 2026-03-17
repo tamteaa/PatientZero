@@ -5,7 +5,7 @@ from core.llm.mock import MockProvider
 
 @pytest.fixture
 def provider():
-    return MockProvider()
+    return MockProvider(delay=0)
 
 
 def test_judge_has_system_prompt(provider):

@@ -17,7 +17,7 @@ PERSONA = Persona(
 
 @pytest.fixture
 def provider():
-    return MockProvider()
+    return MockProvider(delay=0)
 
 
 def test_persona_in_prompt(provider):

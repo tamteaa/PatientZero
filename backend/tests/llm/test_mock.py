@@ -4,7 +4,7 @@ from core.llm.mock import MockProvider
 
 @pytest.mark.asyncio
 async def test_mock_streams_tokens():
-    provider = MockProvider()
+    provider = MockProvider(delay=0)
     tokens = []
     async for token in provider.stream([{"role": "user", "content": "Hi"}], "default"):
         tokens.append(token)
@@ -15,7 +15,7 @@ async def test_mock_streams_tokens():
 
 @pytest.mark.asyncio
 async def test_mock_includes_user_message():
-    provider = MockProvider()
+    provider = MockProvider(delay=0)
     tokens = []
     async for token in provider.stream([{"role": "user", "content": "test message"}], "default"):
         tokens.append(token)
@@ -25,7 +25,7 @@ async def test_mock_includes_user_message():
 
 @pytest.mark.asyncio
 async def test_mock_includes_model_name():
-    provider = MockProvider()
+    provider = MockProvider(delay=0)
     tokens = []
     async for token in provider.stream([{"role": "user", "content": "Hi"}], "mymodel"):
         tokens.append(token)

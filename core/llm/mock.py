@@ -5,6 +5,9 @@ from core.llm.base import LLMProvider
 
 
 class MockProvider(LLMProvider):
+    def __init__(self, delay: float = 0.03):
+        self.delay = delay
+
     async def stream(self, messages: list[dict], model: str) -> AsyncGenerator[str, None]:
         last_message = messages[-1]["content"] if messages else ""
         response = (
@@ -14,4 +17,4 @@ class MockProvider(LLMProvider):
         )
         for word in response.split():
             yield word + " "
-            await asyncio.sleep(0.03)
+            await asyncio.sleep(self.delay)

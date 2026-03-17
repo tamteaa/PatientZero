@@ -1,7 +1,7 @@
 """
 Evaluation for simulation pipeline.
 
-Imports core agents directly — no running server needed.
+Imports core directly — no running server needed.
 Requires a real LLM API key configured in .env (or use mock).
 
 Usage:
@@ -11,10 +11,11 @@ Usage:
 import asyncio
 import sys
 
-from core.types import AgentTrace, Persona, Scenario
 from core.agents.explainer import ExplainerAgent
 from core.agents.patient import PatientAgent
 from core.llm.factory import parse_provider_model
+from core.simulation import Simulation
+from core.types import AgentTrace, Persona, Scenario
 
 # ── Test data ────────────────────────────────────────────────────────────────
 
@@ -42,45 +43,6 @@ SCENARIO = Scenario(
 SCENARIO_KEYWORDS = ["blood", "wbc", "hemoglobin", "anemia", "white blood cell", "red blood cell"]
 
 MODEL = "mock:default"
-
-
-# ── Simulation runner ────────────────────────────────────────────────────────
-
-def _build_messages(transcript: list[dict], perspective: str) -> list[dict]:
-    """Build message list from a given agent's perspective."""
-    messages = []
-    for entry in transcript:
-        role = "assistant" if entry["speaker"] == perspective else "user"
-        messages.append({"role": role, "content": entry["content"]})
-    return messages
-
-
-async def run_simulation(style: str, mode: str) -> AgentTrace | None:
-    """Run a simulation directly using core agents. Returns full trace."""
-    try:
-        provider, model = parse_provider_model(MODEL)
-    except Exception as e:
-        print(f"  \033[31mERROR\033[0m  Failed to get provider: {e}")
-        return None
-
-    explainer = ExplainerAgent(provider, model, style, mode, SCENARIO)
-    patient = PatientAgent(provider, model, PERSONA)
-
-    max_turns = 2 if mode == "static" else 8
-    transcript: list[dict] = []
-    trace = AgentTrace()
-
-    for turn in range(max_turns):
-        is_explainer = turn % 2 == 0
-        speaker = "explainer" if is_explainer else "patient"
-        agent = explainer if is_explainer else patient
-
-        messages = _build_messages(transcript, speaker)
-        step = await agent.respond(messages)
-        trace.add(step)
-        transcript.append({"speaker": speaker, "content": step.output})
-
-    return trace
 
 
 # ── Checks ───────────────────────────────────────────────────────────────────
@@ -160,6 +122,21 @@ def evaluate_trace(trace: AgentTrace, mode: str, results: Results):
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
+
+async def run_simulation(style: str, mode: str) -> AgentTrace | None:
+    """Run a simulation using the Simulation orchestrator."""
+    try:
+        provider, model = parse_provider_model(MODEL)
+    except Exception as e:
+        print(f"  \033[31mERROR\033[0m  Failed to get provider: {e}")
+        return None
+
+    explainer = ExplainerAgent(provider, model, style, mode, SCENARIO)
+    patient = PatientAgent(provider, model, PERSONA)
+
+    sim = Simulation(explainer, patient, mode)
+    return await sim.run()
+
 
 async def async_main():
     results = Results()
