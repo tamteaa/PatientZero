@@ -30,6 +30,9 @@ frontend/dist/
 
 # Database
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 
 # Data output
 backend/data/

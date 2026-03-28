@@ -16,8 +16,9 @@ A simulation system that tests how different AI explanation styles (clinical vs.
 
 ```
 PatientZero/
+├── core/              # Domain logic (imported by the backend)
 ├── frontend/          # React app
-├── backend/           # FastAPI server
+├── backend/           # FastAPI HTTP layer
 ├── plan/              # Implementation plans
 └── report.txt         # Research report
 ```
@@ -41,11 +42,10 @@ cd PatientZero
 cp .env.example .env
 ```
 
-3. Start the backend:
+3. Install Python deps and start the backend (from the repo root so `core` imports resolve):
 ```bash
-cd backend
 uv sync
-uv run uvicorn api.main:app --reload
+uv run uvicorn backend.api.main:app --reload
 ```
 
 4. Start the frontend:
