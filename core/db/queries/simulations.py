@@ -70,4 +70,5 @@ def get_simulation_turns(db: Database, sim_id: str) -> list[dict]:
 
 def delete_simulation(db: Database, sim_id: str) -> None:
     db.execute("DELETE FROM simulation_turns WHERE simulation_id = ?", (sim_id,))
+    db.execute("DELETE FROM evaluations WHERE simulation_id = ?", (sim_id,))
     db.execute("DELETE FROM simulations WHERE id = ?", (sim_id,))

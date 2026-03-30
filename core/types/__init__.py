@@ -22,6 +22,7 @@ class Scenario:
     normal_range: str
     significance: str
     keywords: list[str] = field(default_factory=list)
+    quiz: list[dict] = field(default_factory=list)
 
 
 class SimulationStatus(Enum):
