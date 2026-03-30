@@ -2,7 +2,6 @@ import { Header } from '@/components/common/Header';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Activity, Droplets, Pill } from 'lucide-react';
 
@@ -59,11 +58,11 @@ const scenarios = [
 
 export function ScenariosPage() {
   return (
-    <>
+    <div className="flex flex-1 flex-col overflow-hidden">
       <Header title="Scenarios">
         <Badge variant="secondary">{scenarios.length} scenarios</Badge>
       </Header>
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-6 p-6">
           <p className="text-sm text-muted-foreground max-w-2xl">
             Three medical scenarios designed to test different aspects of health comprehension. Each scenario has four explanation variants from the 2×2 design (clinical/analogy × static/dialog).
@@ -130,7 +129,7 @@ export function ScenariosPage() {
             );
           })}
         </div>
-      </ScrollArea>
-    </>
+      </div>
+    </div>
   );
 }

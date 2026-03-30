@@ -174,6 +174,43 @@ class Simulation:
         if self.state == SimulationStatus.RUNNING:
             self.state = SimulationStatus.COMPLETED
 
+        # Quiz phase — ask each comprehension question to the patient agent
+        if self.state == SimulationStatus.COMPLETED and self.explainer.scenario.quiz:
+            for qa in self.explainer.scenario.quiz:
+                current_turn = self._turn
+                yield ("turn_start", TurnStartEvent(role="quiz", turn=current_turn))
+
+                messages = self._build_messages("patient") + [
+                    {"role": "user", "content": f"[COMPREHENSION CHECK] {qa['question']} Please answer briefly based only on what you were just told."}
+                ]
+                started_at = datetime.now(timezone.utc)
+                chunks: list[str] = []
+                try:
+                    async for token in self.patient.stream(messages):
+                        chunks.append(token)
+                        yield ("token", token)
+                except Exception as e:
+                    chunks.append(f"[error: {e}]")
+
+                output = "".join(chunks)
+                ended_at = datetime.now(timezone.utc)
+                duration_ms = (ended_at - started_at).total_seconds() * 1000
+
+                step = AgentStep(
+                    agent_type="QuizResponse",
+                    model=self.patient.model,
+                    system_prompt=self.patient.system_prompt,
+                    input_messages=[Message(**m) for m in messages],
+                    output=output,
+                    started_at=started_at,
+                    ended_at=ended_at,
+                    duration_ms=duration_ms,
+                )
+                self.trace.add(step)
+                self._turn += 1
+
+                yield ("turn_end", TurnEndEvent(role="quiz", turn=current_turn))
+
         yield ("done", None)
 
     # ── Internal ─────────────────────────────────────────────────────────

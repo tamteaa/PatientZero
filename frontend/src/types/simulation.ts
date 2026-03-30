@@ -71,3 +71,22 @@ export interface SimulationDetail extends SimulationSummary {
   turns: SimulationTurn[];
   config_json: string;
 }
+
+export interface Evaluation {
+  id: number;
+  simulation_id: string;
+  model: string;
+  comprehension_score: number | null;
+  factual_recall: number | null;
+  applied_reasoning: number | null;
+  explanation_quality: number | null;
+  interaction_quality: number | null;
+  confidence_comprehension_gap: string | null;
+  justification: string | null;
+  created_at: string;
+  // joined from simulations
+  persona_name?: string;
+  scenario_name?: string;
+  style?: Style;
+  mode?: Mode;
+}

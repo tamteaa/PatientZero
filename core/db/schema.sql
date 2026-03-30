@@ -38,3 +38,17 @@ CREATE TABLE IF NOT EXISTS simulation_turns (
     duration_ms REAL NOT NULL,
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS evaluations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    simulation_id TEXT NOT NULL REFERENCES simulations(id),
+    model TEXT NOT NULL,
+    comprehension_score REAL,
+    factual_recall REAL,
+    applied_reasoning REAL,
+    explanation_quality REAL,
+    interaction_quality REAL,
+    confidence_comprehension_gap TEXT,
+    justification TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
