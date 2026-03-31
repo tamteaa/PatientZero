@@ -95,6 +95,62 @@ export interface BatchEvent {
   skipped?: number;
 }
 
+export interface EvalBatchEvent {
+  type: 'batch_start' | 'eval_start' | 'eval_done' | 'batch_done';
+  current?: number;
+  total: number;
+  sim_id?: string;
+  persona?: string;
+  scenario?: string;
+  style?: string;
+  mode?: string;
+  state?: 'completed' | 'error';
+  comprehension_score?: number | null;
+  error?: string;
+  succeeded?: number;
+  failed?: number;
+}
+
+export async function runBatchEvaluate(
+  model: string,
+  onEvent: (event: EvalBatchEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/evaluations/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model }),
+    signal,
+  });
+
+  const reader = response.body?.getReader();
+  if (!reader) return;
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let currentEvent = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+    for (const line of lines) {
+      if (line.startsWith('event:')) { currentEvent = line.slice(6).trim(); continue; }
+      if (line.startsWith('data:')) {
+        const raw = line.slice(5).trim();
+        if (!raw) continue;
+        try {
+          const parsed = JSON.parse(raw);
+          onEvent({ type: currentEvent as EvalBatchEvent['type'], ...parsed });
+        } catch { /* skip */ }
+        currentEvent = '';
+      }
+    }
+  }
+}
+
 export async function runBatch(
   model: string,
   skipExisting: boolean,

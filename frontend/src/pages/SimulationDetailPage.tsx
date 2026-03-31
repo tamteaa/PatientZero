@@ -7,9 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, Loader2 } from 'lucide-react';
-import { getSimulation, runSimulation, listModels, listPersonas, listScenarios } from '@/api/sessions';
+import { getSimulation, getSimulationEvaluation, listScenarios } from '@/api/sessions';
 import type {
-  Persona,
+  Evaluation,
   Scenario,
   SimulationDetail,
   SimulationMessage,
@@ -49,6 +49,86 @@ function MessageBubble({ message, isStreaming }: { message: SimulationMessage; i
   );
 }
 
+function QuizBubble({ index, question, content }: { index: number; question?: string; content: string }) {
+  return (
+    <div className="flex flex-col gap-2">
+      {question && (
+        <div className="flex flex-col gap-1 items-start">
+          <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
+            Question {index + 1}
+          </span>
+          <div className="max-w-[85%] rounded-lg px-4 py-3 text-sm bg-amber-100/60 text-amber-900 dark:bg-amber-900/20 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
+            {question}
+          </div>
+        </div>
+      )}
+      <div className="flex flex-col gap-1 items-end">
+        <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+          Patient Answer {index + 1}
+        </span>
+        <div className="max-w-[85%] rounded-lg px-4 py-3 text-sm whitespace-pre-wrap bg-amber-50 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100 border border-amber-200 dark:border-amber-800">
+          {content}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScoreBar({ label, value }: { label: string; value: number | null }) {
+  const pct = value != null ? Math.max(0, Math.min(100, value)) : null;
+  const color =
+    pct == null ? 'bg-muted'
+    : pct >= 70 ? 'bg-green-500'
+    : pct >= 50 ? 'bg-amber-500'
+    : 'bg-red-500';
+  const textColor =
+    pct == null ? 'text-muted-foreground'
+    : pct >= 70 ? 'text-green-600 dark:text-green-400'
+    : pct >= 50 ? 'text-amber-600 dark:text-amber-400'
+    : 'text-red-600 dark:text-red-400';
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-32 shrink-0 text-xs text-muted-foreground text-right">{label}</span>
+      <div className="flex-1 h-2.5 bg-muted rounded overflow-hidden">
+        {pct != null && <div className={`h-full rounded ${color}`} style={{ width: `${pct}%` }} />}
+      </div>
+      <span className={`w-8 text-xs tabular-nums text-right ${textColor}`}>
+        {pct != null ? pct : '—'}
+      </span>
+    </div>
+  );
+}
+
+function EvaluationPanel({ evaluation }: { evaluation: Evaluation }) {
+  return (
+    <Card size="sm" className="bg-muted/30">
+      <CardContent className="py-4">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-semibold">Judge Evaluation</span>
+          <span className="text-xs text-muted-foreground font-mono">{evaluation.model}</span>
+        </div>
+        <div className="space-y-1.5">
+          <ScoreBar label="Comprehension" value={evaluation.comprehension_score} />
+          <ScoreBar label="Factual Recall" value={evaluation.factual_recall} />
+          <ScoreBar label="Applied Reasoning" value={evaluation.applied_reasoning} />
+          <ScoreBar label="Explanation Quality" value={evaluation.explanation_quality} />
+          <ScoreBar label="Interaction Quality" value={evaluation.interaction_quality} />
+        </div>
+        {evaluation.confidence_comprehension_gap && (
+          <p className="text-xs text-muted-foreground mt-2">
+            <span className="font-medium">Confidence gap:</span> {evaluation.confidence_comprehension_gap}
+          </p>
+        )}
+        {evaluation.justification && (
+          <p className="text-xs text-muted-foreground mt-1">
+            <span className="font-medium">Justification:</span> {evaluation.justification}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function SimulationDetailPage() {
   const { simId } = useParams<{ simId: string }>();
   const navigate = useNavigate();
@@ -56,6 +136,8 @@ export function SimulationDetailPage() {
 
   const [sim, setSim] = useState<SimulationState>(INITIAL_STATE);
   const [detail, setDetail] = useState<SimulationDetail | null>(null);
+  const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchDetail = useCallback(() => {
@@ -67,7 +149,11 @@ export function SimulationDetailPage() {
           status: data.state as SimulationState['status'],
           simulationId: data.id,
           config: null,
-          messages: data.turns.map((t) => ({ role: t.role, content: t.content })),
+          messages: data.turns.map((t) => ({
+            role: t.role as SimulationRole,
+            content: t.content,
+            agent_type: t.agent_type,
+          })),
           streamingRole: null,
           streamingContent: '',
           currentTurn: data.turns.length,
@@ -81,16 +167,21 @@ export function SimulationDetailPage() {
       });
   }, [simId]);
 
-  // Initial load
   useEffect(() => {
     if (!simId || simId === 'new') {
       setLoading(false);
       return;
     }
-    fetchDetail()?.finally(() => setLoading(false));
+    Promise.all([
+      fetchDetail(),
+      getSimulationEvaluation(simId).catch(() => null),
+      listScenarios().catch(() => []),
+    ]).then(([, eval_, scens]) => {
+      setEvaluation(eval_);
+      setScenarios(scens);
+    }).finally(() => setLoading(false));
   }, [simId, fetchDetail]);
 
-  // Poll while running
   useEffect(() => {
     if (!detail || detail.state !== 'running') return;
     const interval = setInterval(() => {
@@ -107,12 +198,12 @@ export function SimulationDetailPage() {
 
   if (loading) {
     return (
-      <>
+      <div className="flex flex-1 flex-col overflow-hidden">
         <Header title="Simulation" />
         <div className="flex flex-1 items-center justify-center text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
         </div>
-      </>
+      </div>
     );
   }
 
@@ -124,9 +215,11 @@ export function SimulationDetailPage() {
     error: 'bg-red-100 text-red-700',
   };
 
+  const conversationMessages = sim.messages.filter((m) => m.role !== 'quiz');
+  const quizMessages = sim.messages.filter((m) => m.role === 'quiz');
+
   return (
-    <>
-      {/* Header bar with back button + simulation metadata */}
+    <div className="flex flex-1 flex-col overflow-hidden">
       <div className="border-b border-border bg-muted/20 px-4 py-3">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={() => navigate('/simulations')}>
@@ -141,21 +234,27 @@ export function SimulationDetailPage() {
               <span><span className="text-muted-foreground">Style:</span> {detail.style}</span>
               <span><span className="text-muted-foreground">Mode:</span> {detail.mode}</span>
               <span><span className="text-muted-foreground">Model:</span> {detail.model}</span>
-              <span><span className="text-muted-foreground">Turns:</span> {detail.turns.length}</span>
+              <span><span className="text-muted-foreground">Turns:</span> {conversationMessages.length}</span>
+              {quizMessages.length > 0 && (
+                <span><span className="text-muted-foreground">Quiz:</span> {quizMessages.length}q</span>
+              )}
               {detail.duration_ms != null && (
                 <span><span className="text-muted-foreground">Duration:</span> {(detail.duration_ms / 1000).toFixed(1)}s</span>
               )}
-              <span><span className="text-muted-foreground">Created:</span> {new Date(detail.created_at).toLocaleString()}</span>
+              {evaluation && (
+                <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  score: {evaluation.comprehension_score ?? '—'}
+                </Badge>
+              )}
             </div>
           )}
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Transcript */}
         <ScrollArea className="flex-1">
           <div className="flex flex-col gap-4 p-6 max-w-3xl mx-auto">
-            {/* Persona info card */}
+            {/* Persona info */}
             {detail && (() => {
               try {
                 const config = JSON.parse(detail.config_json);
@@ -181,7 +280,10 @@ export function SimulationDetailPage() {
               } catch { return null; }
             })()}
 
-            {sim.messages.length === 0 && sim.status !== 'running' && (
+            {/* Evaluation scores */}
+            {evaluation && <EvaluationPanel evaluation={evaluation} />}
+
+            {conversationMessages.length === 0 && sim.status !== 'running' && (
               <div className="flex flex-1 items-center justify-center py-20 text-muted-foreground">
                 {sim.error ? (
                   <p className="text-red-500">{sim.error}</p>
@@ -191,21 +293,48 @@ export function SimulationDetailPage() {
               </div>
             )}
 
-            {sim.messages.map((msg, i) => (
+            {/* Conversation */}
+            {conversationMessages.map((msg, i) => (
               <MessageBubble key={i} message={msg} />
             ))}
 
-            {sim.streamingRole && (
+            {sim.streamingRole && sim.streamingRole !== 'quiz' && (
               <MessageBubble
                 message={{ role: sim.streamingRole, content: sim.streamingContent }}
                 isStreaming
               />
             )}
 
+            {/* Quiz section */}
+            {quizMessages.length > 0 && (
+              <>
+                <div className="flex items-center gap-3 my-2">
+                  <Separator className="flex-1" />
+                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 shrink-0">
+                    Comprehension Quiz
+                  </span>
+                  <Separator className="flex-1" />
+                </div>
+                {(() => {
+                  const scenarioQuiz = detail
+                    ? scenarios.find((s) => s.test_name === detail.scenario_name)?.quiz ?? []
+                    : [];
+                  return quizMessages.map((msg, i) => (
+                    <QuizBubble
+                      key={i}
+                      index={i}
+                      question={scenarioQuiz[i]?.question}
+                      content={msg.content}
+                    />
+                  ));
+                })()}
+              </>
+            )}
+
             <div ref={scrollRef} />
           </div>
         </ScrollArea>
       </div>
-    </>
+    </div>
   );
 }

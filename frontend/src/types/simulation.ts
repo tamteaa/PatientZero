@@ -15,11 +15,12 @@ export interface Scenario {
   normal_range: string;
   significance: string;
   keywords: string[];
+  quiz: { question: string; answer: string }[];
 }
 
 export type Style = 'clinical' | 'analogy';
 export type Mode = 'static' | 'dialog';
-export type SimulationRole = 'explainer' | 'patient';
+export type SimulationRole = 'explainer' | 'patient' | 'quiz';
 
 export interface SimulationConfig {
   persona: Persona;
@@ -33,6 +34,7 @@ export interface SimulationConfig {
 export interface SimulationMessage {
   role: SimulationRole;
   content: string;
+  agent_type?: string;
 }
 
 export type SimulationStatus = 'idle' | 'running' | 'paused' | 'completed' | 'error';
@@ -63,6 +65,7 @@ export interface SimulationSummary {
 export interface SimulationTurn {
   turn_number: number;
   role: SimulationRole;
+  agent_type: string;
   content: string;
   duration_ms: number;
 }

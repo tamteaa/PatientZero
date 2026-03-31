@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Header } from '@/components/common/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,12 +11,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, FlaskConical, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, FlaskConical, ChevronDown, ChevronUp, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import {
   listSimulations,
   listModels,
   evaluateSimulation,
   listEvaluations,
+  runBatchEvaluate,
 } from '@/api/sessions';
 import type { Evaluation, SimulationSummary } from '@/types/simulation';
 
@@ -91,6 +92,16 @@ export function JudgePage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
+  // Batch evaluate state
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchDone, setBatchDone] = useState(false);
+  const [batchCurrent, setBatchCurrent] = useState(0);
+  const [batchTotal, setBatchTotal] = useState(0);
+  const [batchLog, setBatchLog] = useState<{ simId: string; persona: string; scenario: string; state: 'running' | 'completed' | 'error'; score?: number | null; error?: string }[]>([]);
+  const [batchSummary, setBatchSummary] = useState<{ succeeded: number; failed: number } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const logEndRef = useRef<HTMLDivElement | null>(null);
+
   const reload = useCallback(() => {
     return Promise.all([
       listSimulations(),
@@ -125,6 +136,63 @@ export function JudgePage() {
       });
     }
   }, [selectedModel]);
+
+  const handleBatchEvaluate = useCallback(async () => {
+    const abort = new AbortController();
+    abortRef.current = abort;
+    setBatchRunning(true);
+    setBatchDone(false);
+    setBatchLog([]);
+    setBatchSummary(null);
+    setBatchCurrent(0);
+    setBatchTotal(0);
+
+    try {
+      await runBatchEvaluate(
+        selectedModel,
+        (event) => {
+          if (event.type === 'batch_start') {
+            setBatchTotal(event.total);
+          } else if (event.type === 'eval_start') {
+            setBatchCurrent(event.current ?? 0);
+            setBatchLog((prev) => [...prev, {
+              simId: event.sim_id ?? '',
+              persona: event.persona ?? '',
+              scenario: event.scenario ?? '',
+              state: 'running',
+            }]);
+            logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          } else if (event.type === 'eval_done') {
+            setBatchCurrent(event.current ?? 0);
+            setBatchLog((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last?.state === 'running') {
+                updated[updated.length - 1] = {
+                  ...last,
+                  state: event.state === 'error' ? 'error' : 'completed',
+                  score: event.comprehension_score,
+                  error: event.error,
+                };
+              }
+              return updated;
+            });
+            if (event.state === 'completed' && event.sim_id) {
+              reload();
+            }
+          } else if (event.type === 'batch_done') {
+            setBatchSummary({ succeeded: event.succeeded ?? 0, failed: event.failed ?? 0 });
+            setBatchRunning(false);
+            setBatchDone(true);
+            reload();
+          }
+        },
+        abort.signal,
+      );
+    } catch {
+      setBatchRunning(false);
+    }
+  }, [selectedModel, reload]);
 
   const toggleExpand = (simId: string) => {
     setExpanded((prev) => {
@@ -186,6 +254,17 @@ export function JudgePage() {
               ))}
             </SelectContent>
           </Select>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            disabled={batchRunning}
+            onClick={handleBatchEvaluate}
+          >
+            {batchRunning
+              ? <><Loader2 className="h-3 w-3 animate-spin" /> Evaluating…</>
+              : <><FlaskConical className="h-3 w-3" /> Evaluate All</>}
+          </Button>
         </div>
       </Header>
       <ScrollArea className="flex-1">
@@ -193,6 +272,52 @@ export function JudgePage() {
           <p className="text-xs text-muted-foreground">
             {evaluatedCount} of {simulations.length} simulations evaluated
           </p>
+
+          {/* Batch progress */}
+          {(batchRunning || batchDone) && (
+            <Card>
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold">Batch Evaluate</span>
+                    {batchTotal > 0 && (
+                      <span className="text-xs text-muted-foreground tabular-nums">{batchCurrent} / {batchTotal}</span>
+                    )}
+                    {batchSummary && (
+                      <span className="text-xs text-muted-foreground">— {batchSummary.succeeded} ok · {batchSummary.failed} failed</span>
+                    )}
+                  </div>
+                  {batchDone && (
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground"
+                      onClick={() => { setBatchDone(false); setBatchLog([]); }}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                {batchTotal > 0 && (
+                  <div className="h-1 w-full bg-muted rounded-full overflow-hidden mb-2">
+                    <div className="h-full bg-primary rounded-full transition-all"
+                      style={{ width: `${(batchCurrent / batchTotal) * 100}%` }} />
+                  </div>
+                )}
+                <div className="max-h-36 overflow-y-auto space-y-0.5 text-xs font-mono">
+                  {batchLog.map((entry, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      {entry.state === 'completed' && <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />}
+                      {entry.state === 'error' && <AlertCircle className="h-3 w-3 text-red-500 shrink-0" />}
+                      {entry.state === 'running' && <Loader2 className="h-3 w-3 text-blue-500 animate-spin shrink-0" />}
+                      <span className={entry.state === 'error' ? 'text-red-500' : ''}>
+                        {entry.persona} · {entry.scenario}
+                        {entry.state === 'completed' && entry.score != null && ` → ${entry.score}`}
+                        {entry.error && ` — ${entry.error}`}
+                      </span>
+                    </div>
+                  ))}
+                  <div ref={logEndRef} />
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {simulations.map((sim) => {
             const evaluation = evaluations.get(sim.id);

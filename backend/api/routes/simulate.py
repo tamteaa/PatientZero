@@ -233,6 +233,89 @@ def get_all_evaluations():
     return list_evaluations(db)
 
 
+@router.post("/evaluations/batch")
+async def evaluate_batch(request: EvaluateRequest):
+    all_sims = list_simulations(db)
+    completed_sims = [s for s in all_sims if s["state"] == "completed"]
+    existing_evals = {e["simulation_id"] for e in list_evaluations(db)}
+    pending = [s for s in completed_sims if s["id"] not in existing_evals]
+    total = len(pending)
+
+    async def generate():
+        yield {"event": "batch_start", "data": json.dumps({"total": total})}
+
+        succeeded = 0
+        failed = 0
+
+        for i, sim in enumerate(pending):
+            sim_id = sim["id"]
+            yield {
+                "event": "eval_start",
+                "data": json.dumps({
+                    "current": i + 1,
+                    "total": total,
+                    "sim_id": sim_id,
+                    "persona": sim["persona_name"],
+                    "scenario": sim["scenario_name"],
+                    "style": sim["style"],
+                    "mode": sim["mode"],
+                }),
+            }
+            try:
+                turns = get_simulation_turns(db, sim_id)
+                main_turns = [t for t in turns if t["agent_type"] != "QuizResponse"]
+                quiz_turns = [t for t in turns if t["agent_type"] == "QuizResponse"]
+                transcript = [{"role": t["role"], "content": t["content"]} for t in main_turns]
+
+                scenario_config = next(
+                    (s for s in SCENARIOS if s.test_name == sim["scenario_name"]), None
+                )
+                answer_key = scenario_config.quiz if scenario_config else []
+                quiz_responses = [
+                    {"question": answer_key[i2]["question"], "answer": t["content"]}
+                    for i2, t in enumerate(quiz_turns)
+                    if i2 < len(answer_key)
+                ]
+
+                provider, model_str = parse_provider_model(request.model)
+                judge = JudgeAgent(provider, model_str)
+                result = await judge.evaluate(
+                    transcript=transcript,
+                    quiz_responses=quiz_responses,
+                    answer_key=answer_key,
+                    mode=sim["mode"],
+                )
+                delete_evaluation(db, sim_id)
+                create_evaluation(db, sim_id, request.model, result)
+                succeeded += 1
+                yield {
+                    "event": "eval_done",
+                    "data": json.dumps({
+                        "current": i + 1,
+                        "total": total,
+                        "sim_id": sim_id,
+                        "state": "completed",
+                        "comprehension_score": result.get("comprehension_score"),
+                    }),
+                }
+            except Exception as e:
+                failed += 1
+                yield {
+                    "event": "eval_done",
+                    "data": json.dumps({
+                        "current": i + 1,
+                        "total": total,
+                        "sim_id": sim_id,
+                        "state": "error",
+                        "error": str(e),
+                    }),
+                }
+
+        yield {"event": "batch_done", "data": json.dumps({"succeeded": succeeded, "failed": failed, "total": total})}
+
+    return EventSourceResponse(generate())
+
+
 # ── Batch run ────────────────────────────────────────────────────────────────
 
 
@@ -251,6 +334,7 @@ async def simulate_batch(request: BatchRequest):
         existing = {
             f"{s['persona_name']}|{s['scenario_name']}|{s['style']}|{s['mode']}"
             for s in sims
+            if s['state'] == 'completed'
         }
 
     combos = [

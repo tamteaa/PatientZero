@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { ErrorProvider } from '@/contexts/ErrorContext';
+import { BatchRunProvider } from '@/contexts/BatchRunContext';
 import { AppLayout } from '@/layouts/AppLayout';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { ScenariosPage } from '@/pages/ScenariosPage';
@@ -16,6 +17,7 @@ import { ParticipantStudyPage } from '@/pages/ParticipantStudyPage';
 function App() {
   return (
     <ErrorProvider>
+    <BatchRunProvider>
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
@@ -33,6 +35,7 @@ function App() {
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
       <Toaster />
+    </BatchRunProvider>
     </ErrorProvider>
   );
 }

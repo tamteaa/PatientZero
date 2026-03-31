@@ -152,6 +152,7 @@ def build_existing_set(db: Database) -> set[str]:
     return {
         f"{s['persona_name']}|{s['scenario_name']}|{s['style']}|{s['mode']}"
         for s in sims
+        if s['state'] == 'completed'
     }
 
 
