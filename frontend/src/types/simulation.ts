@@ -1,11 +1,7 @@
-export interface Persona {
+export interface AgentProfile {
   name: string;
-  age: string;
-  education: string;
-  literacy_level: string;
-  anxiety: string;
-  prior_knowledge: string;
-  communication_style: string;
+  role: string;
+  traits: Record<string, string>;
   backstory: string;
 }
 
@@ -17,15 +13,14 @@ export interface Scenario {
   keywords: string[];
 }
 
-export type Style = 'clinical' | 'analogy';
-export type Mode = 'static' | 'dialog';
-export type SimulationRole = 'explainer' | 'patient';
+export type Style = string;
+export type SimulationRole = 'doctor' | 'patient';
 
 export interface SimulationConfig {
-  persona: Persona;
-  style: Style;
-  mode: Mode;
-  scenario: Scenario;
+  patient_name: string;
+  doctor_name: string;
+  scenario_name: string;
+  style: string;
   model: string;
   max_turns?: number;
 }
@@ -52,8 +47,7 @@ export interface SimulationSummary {
   id: string;
   persona_name: string;
   scenario_name: string;
-  style: Style;
-  mode: Mode;
+  style: string;
   model: string;
   state: string;
   duration_ms: number | null;
@@ -70,6 +64,7 @@ export interface SimulationTurn {
 export interface SimulationDetail extends SimulationSummary {
   turns: SimulationTurn[];
   config_json: string;
+  text_status?: string;
 }
 
 export interface Evaluation {
@@ -84,9 +79,7 @@ export interface Evaluation {
   confidence_comprehension_gap: string | null;
   justification: string | null;
   created_at: string;
-  // joined from simulations
   persona_name?: string;
   scenario_name?: string;
-  style?: Style;
-  mode?: Mode;
+  style?: string;
 }

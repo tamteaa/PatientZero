@@ -36,3 +36,6 @@ frontend/dist/
 
 # Data output
 backend/data/
+
+# Simulation logs
+logs/

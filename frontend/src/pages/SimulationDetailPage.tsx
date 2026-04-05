@@ -1,43 +1,37 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Header } from '@/components/common/Header';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Loader2 } from 'lucide-react';
-import { getSimulation, runSimulation, listModels, listPersonas, listScenarios } from '@/api/sessions';
-import type {
-  Persona,
-  Scenario,
-  SimulationDetail,
-  SimulationMessage,
-  SimulationRole,
-  SimulationState,
-} from '@/types/simulation';
-
-const INITIAL_STATE: SimulationState = {
-  status: 'idle',
-  simulationId: null,
-  config: null,
-  messages: [],
-  streamingRole: null,
-  streamingContent: '',
-  currentTurn: 0,
-  error: null,
-};
+import { ArrowLeft, Loader2, Pause, Play, Square } from 'lucide-react';
+import {
+  getSimulation,
+  pauseSimulation,
+  resumeSimulation,
+  stopSimulation,
+  subscribeToSimulation,
+} from '@/api/sessions';
+import {
+  simulationDetailAtom,
+  simulationStatusAtom,
+  simulationTextStatusAtom,
+  simulationMessagesAtom,
+  streamingRoleAtom,
+  streamingContentAtom,
+  isSimulationActiveAtom,
+} from '@/atoms/simulation';
+import type { SimulationMessage } from '@/types/simulation';
 
 function MessageBubble({ message, isStreaming }: { message: SimulationMessage; isStreaming?: boolean }) {
-  const isExplainer = message.role === 'explainer';
+  const isDoctor = message.role === 'doctor';
   return (
-    <div className={`flex flex-col gap-1 ${isExplainer ? 'items-start' : 'items-end'}`}>
-      <span className={`text-xs font-medium ${isExplainer ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-        {isExplainer ? 'Explainer' : 'Patient'}
+    <div className={`flex flex-col gap-1 ${isDoctor ? 'items-start' : 'items-end'}`}>
+      <span className={`text-xs font-medium ${isDoctor ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+        {isDoctor ? 'Doctor' : 'Patient'}
       </span>
       <div
         className={`max-w-[85%] rounded-lg px-4 py-3 text-sm whitespace-pre-wrap ${
-          isExplainer
+          isDoctor
             ? 'bg-blue-50 text-blue-950 dark:bg-blue-950/30 dark:text-blue-100'
             : 'bg-emerald-50 text-emerald-950 dark:bg-emerald-950/30 dark:text-emerald-100'
         }`}
@@ -49,163 +43,225 @@ function MessageBubble({ message, isStreaming }: { message: SimulationMessage; i
   );
 }
 
+const statusColor: Record<string, string> = {
+  idle: 'bg-gray-100 text-gray-700',
+  running: 'bg-blue-100 text-blue-700',
+  paused: 'bg-yellow-100 text-yellow-700',
+  completed: 'bg-green-100 text-green-700',
+  error: 'bg-red-100 text-red-700',
+};
+
 export function SimulationDetailPage() {
   const { simId } = useParams<{ simId: string }>();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const [sim, setSim] = useState<SimulationState>(INITIAL_STATE);
-  const [detail, setDetail] = useState<SimulationDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useAtom(simulationDetailAtom);
+  const [status, setStatus] = useAtom(simulationStatusAtom);
+  const [textStatus, setTextStatus] = useAtom(simulationTextStatusAtom);
+  const [messages, setMessages] = useAtom(simulationMessagesAtom);
+  const [streamingRole, setStreamingRole] = useAtom(streamingRoleAtom);
+  const [streamingContent, setStreamingContent] = useAtom(streamingContentAtom);
+  const isActive = useAtomValue(isSimulationActiveAtom);
 
   const fetchDetail = useCallback(() => {
-    if (!simId || simId === 'new') return;
+    if (!simId) return;
     return getSimulation(simId)
       .then((data) => {
         setDetail(data);
-        setSim({
-          status: data.state as SimulationState['status'],
-          simulationId: data.id,
-          config: null,
-          messages: data.turns.map((t) => ({ role: t.role, content: t.content })),
-          streamingRole: null,
-          streamingContent: '',
-          currentTurn: data.turns.length,
-          error: null,
-        });
+        setStatus(data.state);
+        setTextStatus(data.text_status || '');
+        setMessages(data.turns.map((t) => ({ role: t.role, content: t.content })));
         return data;
       })
       .catch(() => {
-        setSim({ ...INITIAL_STATE, status: 'error', error: 'Simulation not found' });
+        setStatus('error');
+        setTextStatus('Simulation not found');
         return null;
       });
+  }, [simId, setDetail, setStatus, setTextStatus, setMessages]);
+
+  useEffect(() => {
+    if (!simId) return;
+
+    // Reset state
+    setDetail(null);
+    setStatus('idle');
+    setTextStatus('');
+    setMessages([]);
+    setStreamingRole(null);
+    setStreamingContent('');
+
+    fetchDetail()?.then((data) => {
+      if (!data) return;
+
+      if (data.state === 'running' || data.state === 'paused' || data.state === 'idle') {
+        const abort = new AbortController();
+        abortRef.current = abort;
+
+        const knownTurns = new Set(data.turns.map((t) => t.turn_number));
+
+        subscribeToSimulation(simId, {
+          onTurnStart: (role, turn) => {
+            if (knownTurns.has(turn)) return;
+            setStreamingRole(role);
+            setStreamingContent('');
+            setStatus('running');
+          },
+          onToken: (token) => {
+            setStreamingContent((prev) => prev + token);
+          },
+          onTurnEnd: (role, turn) => {
+            if (knownTurns.has(turn)) return;
+            knownTurns.add(turn);
+            setStreamingContent((prev) => {
+              const content = prev;
+              setMessages((msgs) => [...msgs, { role, content }]);
+              return '';
+            });
+            setStreamingRole(null);
+          },
+          onDone: () => {
+            setStreamingRole(null);
+            setStreamingContent('');
+            fetchDetail();
+          },
+        }, abort.signal);
+      }
+    });
+
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [simId]);
-
-  // Initial load
-  useEffect(() => {
-    if (!simId || simId === 'new') {
-      setLoading(false);
-      return;
-    }
-    fetchDetail()?.finally(() => setLoading(false));
-  }, [simId, fetchDetail]);
-
-  // Poll while running
-  useEffect(() => {
-    if (!detail || detail.state !== 'running') return;
-    const interval = setInterval(() => {
-      fetchDetail()?.then((data) => {
-        if (data && data.state !== 'running') clearInterval(interval);
-      });
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [detail?.state, fetchDetail]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [sim.messages, sim.streamingContent]);
+  }, [messages, streamingContent]);
 
-  if (loading) {
+  const isRunning = status === 'running';
+  const isPaused = status === 'paused';
+
+  const handlePause = useCallback(async () => {
+    if (!simId) return;
+    try {
+      await pauseSimulation(simId);
+      setStatus('paused');
+      setTextStatus(`Paused at turn ${messages.length + 1}`);
+    } catch {}
+  }, [simId, messages.length, setStatus, setTextStatus]);
+
+  const handleResume = useCallback(async () => {
+    if (!simId) return;
+    try {
+      await resumeSimulation(simId);
+      setStatus('running');
+      setTextStatus('Resuming...');
+    } catch {}
+  }, [simId, setStatus, setTextStatus]);
+
+  const handleStop = useCallback(async () => {
+    if (!simId) return;
+    try {
+      await stopSimulation(simId);
+      setStatus('completed');
+      setTextStatus(`Stopped at turn ${messages.length}`);
+      fetchDetail();
+    } catch {}
+  }, [simId, messages.length, setStatus, setTextStatus, fetchDetail]);
+
+  if (!detail && status !== 'error') {
     return (
-      <>
-        <Header title="Simulation" />
-        <div className="flex flex-1 items-center justify-center text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
-        </div>
-      </>
+      <div className="flex flex-1 items-center justify-center text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
     );
   }
 
-  const statusColor: Record<string, string> = {
-    idle: 'bg-gray-100 text-gray-700',
-    running: 'bg-blue-100 text-blue-700',
-    paused: 'bg-yellow-100 text-yellow-700',
-    completed: 'bg-green-100 text-green-700',
-    error: 'bg-red-100 text-red-700',
-  };
-
   return (
-    <>
-      {/* Header bar with back button + simulation metadata */}
-      <div className="border-b border-border bg-muted/20 px-4 py-3">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" className="gap-1.5 shrink-0" onClick={() => navigate('/simulations')}>
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Button>
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Top bar */}
+      <div className="border-b border-border bg-muted/20 px-4 py-2">
+        <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate('/simulations')}>
+          <ArrowLeft className="h-3.5 w-3.5" /> Back
+        </Button>
+      </div>
 
-          {detail && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-              <Badge className={statusColor[detail.state] || ''}>{detail.state}</Badge>
-              <span><span className="text-muted-foreground">Persona:</span> {detail.persona_name}</span>
-              <span><span className="text-muted-foreground">Scenario:</span> {detail.scenario_name}</span>
-              <span><span className="text-muted-foreground">Style:</span> {detail.style}</span>
-              <span><span className="text-muted-foreground">Mode:</span> {detail.mode}</span>
-              <span><span className="text-muted-foreground">Model:</span> {detail.model}</span>
-              <span><span className="text-muted-foreground">Turns:</span> {detail.turns.length}</span>
-              {detail.duration_ms != null && (
-                <span><span className="text-muted-foreground">Duration:</span> {(detail.duration_ms / 1000).toFixed(1)}s</span>
+      {/* Transcript */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-4 p-6 max-w-3xl mx-auto">
+          {messages.length === 0 && !streamingRole && !isRunning && (
+            <div className="flex flex-1 items-center justify-center py-20 text-muted-foreground">
+              {status === 'error' ? (
+                <p className="text-red-500">{textStatus || 'Error'}</p>
+              ) : (
+                <p>No messages.</p>
               )}
-              <span><span className="text-muted-foreground">Created:</span> {new Date(detail.created_at).toLocaleString()}</span>
+            </div>
+          )}
+
+          {messages.map((msg, i) => (
+            <MessageBubble key={i} message={msg} />
+          ))}
+
+          {streamingRole && (
+            <MessageBubble
+              message={{ role: streamingRole, content: streamingContent }}
+              isStreaming
+            />
+          )}
+
+          <div ref={scrollRef} />
+        </div>
+      </div>
+
+      {/* Bottom control bar */}
+      <div className="border-t border-border bg-muted/20 px-4 py-3">
+        <div className="flex items-center justify-between">
+          {detail && (
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <Badge className={statusColor[status] || ''}>{status}</Badge>
+              {textStatus && (
+                <span className="font-medium text-foreground">{textStatus}</span>
+              )}
+              <span>{detail.persona_name}</span>
+              <span>·</span>
+              <span>{detail.scenario_name}</span>
+              <span>·</span>
+              <span>{detail.style}</span>
+              <span>·</span>
+              <span>{detail.model}</span>
+              <span>·</span>
+              <span>{messages.length} turns</span>
+              {detail.duration_ms != null && (
+                <>
+                  <span>·</span>
+                  <span>{(detail.duration_ms / 1000).toFixed(1)}s</span>
+                </>
+              )}
+            </div>
+          )}
+
+          {isActive && (
+            <div className="flex items-center gap-1.5">
+              {isRunning && (
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handlePause}>
+                  <Pause className="h-3.5 w-3.5" /> Pause
+                </Button>
+              )}
+              {isPaused && (
+                <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" onClick={handleResume}>
+                  <Play className="h-3.5 w-3.5" /> Resume
+                </Button>
+              )}
+              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs text-red-600 hover:text-red-700" onClick={handleStop}>
+                <Square className="h-3.5 w-3.5" /> Stop
+              </Button>
             </div>
           )}
         </div>
       </div>
-
-      <div className="flex flex-1 overflow-hidden">
-        {/* Transcript */}
-        <ScrollArea className="flex-1">
-          <div className="flex flex-col gap-4 p-6 max-w-3xl mx-auto">
-            {/* Persona info card */}
-            {detail && (() => {
-              try {
-                const config = JSON.parse(detail.config_json);
-                const p = config.persona;
-                if (!p) return null;
-                return (
-                  <Card size="sm" className="bg-muted/30">
-                    <CardContent className="py-4">
-                      <div className="flex items-baseline gap-2 mb-2">
-                        <span className="font-semibold text-sm">{p.name}</span>
-                        <span className="text-xs text-muted-foreground">{p.age} · {p.education}</span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2 text-xs mb-2">
-                        <div><span className="text-muted-foreground">Literacy:</span> {p.literacy_level}</div>
-                        <div><span className="text-muted-foreground">Anxiety:</span> {p.anxiety}</div>
-                        <div><span className="text-muted-foreground">Knowledge:</span> {p.prior_knowledge}</div>
-                        <div><span className="text-muted-foreground">Style:</span> {p.communication_style}</div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{p.backstory}</p>
-                    </CardContent>
-                  </Card>
-                );
-              } catch { return null; }
-            })()}
-
-            {sim.messages.length === 0 && sim.status !== 'running' && (
-              <div className="flex flex-1 items-center justify-center py-20 text-muted-foreground">
-                {sim.error ? (
-                  <p className="text-red-500">{sim.error}</p>
-                ) : (
-                  <p>No messages.</p>
-                )}
-              </div>
-            )}
-
-            {sim.messages.map((msg, i) => (
-              <MessageBubble key={i} message={msg} />
-            ))}
-
-            {sim.streamingRole && (
-              <MessageBubble
-                message={{ role: sim.streamingRole, content: sim.streamingContent }}
-                isStreaming
-              />
-            )}
-
-            <div ref={scrollRef} />
-          </div>
-        </ScrollArea>
-      </div>
-    </>
+    </div>
   );
 }

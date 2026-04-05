@@ -2,121 +2,45 @@
 
 ## Project: PatientZero
 
-Research simulation system studying how AI explanation styles (clinical vs analogy) and interaction modes (static vs dialog) affect patient comprehension of medical information.
+Simulation system that uses LLM agents to simulate doctor-patient interactions around medical test results. A DoctorAgent explains, a PatientAgent responds, and a JudgeAgent scores comprehension.
 
-## Repo Layout
+## Commands
 
-This is a git submodule inside the parent `AI_Capstone` repo.
+All commands run from project root (`project/`), not `backend/`.
 
-```
-project/
-├── core/          # Pure Python logic (agents, llm, config, db, simulation, types)
-├── backend/       # Thin FastAPI HTTP layer + tests
-├── evaluations/   # Evaluation scripts (import core directly, no server needed)
-├── frontend/      # React + Vite + TypeScript app
-├── plan/          # Implementation plans
-├── pyproject.toml # Python deps (uv), at project root
-└── report.txt     # Research report
+```bash
+uv sync                                              # install python deps
+uv run uvicorn backend.api.main:app --reload          # run backend
+uv run python -m pytest backend/tests/ -v             # run tests
+uv run python -m evaluations.judge.run [--model M]    # run judge evals
+cd frontend && npm install && npm run dev              # run frontend (port 5173)
 ```
 
-## Working Directory
-
-**All commands run from project root** (`project/`), not `backend/`.
-
-- **Install deps**: `uv sync`
-- **Run server**: `uv run uvicorn backend.api.main:app --reload`
-- **Run tests**: `uv run python -m pytest backend/tests/ -v`
-- **Run evaluations**: `uv run python -m evaluations.simulate.test_simulate`
-
-## Core (`core/`)
-
-All domain logic lives here. No FastAPI dependency.
+## Repo Structure
 
 ```
-core/
-├── types/         # Dataclasses: Persona, Scenario, Message, AgentStep, AgentTrace, SimulationState
-├── agents/        # Agent base class + PatientAgent, ExplainerAgent, JudgeAgent, prompts/
-├── llm/           # LLMProvider ABC, factory, MockProvider, OpenAIProvider
-├── config/        # Settings, personas
-├── db/            # Database class, schema, queries
-└── simulation/    # Simulation orchestrator with state machine (run/step/pause/resume/stop)
+core/           # All domain logic, no FastAPI dependency
+  agents/       # DoctorAgent, PatientAgent, JudgeAgent + prompts.py
+  llm/          # LLMProvider ABC, factory, Mock/OpenAI/ClaudeCLI providers
+  services/     # run_simulation_streaming() orchestration
+  simulation/   # Simulation runner (state machine: run/step/pause/resume/stop)
+  config/       # Settings, personas, 3 scenarios (CBC, HbA1c, Metformin)
+  db/           # SQLite (WAL), schema.sql, queries/{sessions,simulations,evaluations}.py
+  types/        # Dataclasses & enums split across modules, re-exported from __init__
+backend/        # FastAPI routes (chat.py, simulate.py), tests
+evaluations/    # Judge eval harness — hardcoded transcripts, auto-discovered
+frontend/       # React 19 + Vite + TS, Tailwind + shadcn/ui
 ```
 
-### Types (`core/types/`)
+## Key Patterns
 
-- `Persona` — 8-field dataclass (name, age, education, literacy_level, anxiety, prior_knowledge, communication_style, backstory)
-- `Scenario` — 4-field dataclass (test_name, results, normal_range, significance)
-- `Message` — role + content
-- `AgentStep` — single LLM call record (agent_type, model, system_prompt, input/output, timing, error)
-- `AgentTrace` — full trajectory of steps with `add()`, timing, `transcript`, `to_dict()`
-- `SimulationState` — enum: IDLE, RUNNING, PAUSED, COMPLETED, ERROR
-
-### LLM Provider Architecture
-
-Factory pattern with abstract base class:
-
-- `core/llm/base.py` — `LLMProvider` ABC with `async stream()` method
-- `core/llm/factory.py` — `get_provider()` singleton factory + `parse_provider_model()` parser
-- `core/llm/mock.py` — `MockProvider` for testing (configurable delay)
-- `core/llm/openai_provider.py` — `OpenAIProvider` wrapping `AsyncOpenAI`, used for any OpenAI-compatible API
-
-**Models use `"provider:model"` string format** (e.g., `"kimi:kimi-k2.5"`). Parsed by `parse_provider_model()`.
-
-**Current providers**: `mock`, `kimi` (Moonshot API via OpenAI-compatible client). `claude` and `local` are listed in AVAILABLE_MODELS but not yet implemented.
-
-### Adding a new LLM provider
-
-1. Create `core/llm/<name>.py` implementing `LLMProvider.stream()`
-2. Add a `case` in `core/llm/factory.py:get_provider()`
-3. Add model strings to `core/config/settings.py:AVAILABLE_MODELS`
-4. Add env vars to `.env.example`
-
-### Agents (`core/agents/`)
-
-Three agent types built on `core/agents/base.py`:
-- **PatientAgent** — simulates patients with `Persona` dataclass
-- **ExplainerAgent** — explains medical test results with `Scenario` dataclass (4 prompt variants)
-- **JudgeAgent** — evaluates patient comprehension, returns JSON
-
-`Agent.respond()` returns `AgentStep`. `Agent.stream()` yields tokens.
-
-### Simulation (`core/simulation/`)
-
-`Simulation` class orchestrates explainer/patient conversations with state machine:
-- `run()` — runs all turns, returns `AgentTrace`
-- `step()` — executes one turn, pauses
-- `pause()` / `resume()` / `stop()` — state control
-- `run_streaming()` — yields `(event_type, data)` tuples for SSE
-
-### API
-
-All endpoints prefixed with `/api`. Chat uses SSE streaming. Sessions store model selection. Backend routes in `backend/api/routes/`.
-
-## Frontend
-
-- React + Vite + TypeScript
-- Tailwind CSS + shadcn/ui components
-- `cd frontend && npm install && npm run dev` to run (port 5173)
-
-## Environment
-
-Config via `.env` file at project root (see `.env.example`). Key vars:
-- `KIMI_API_KEY` — for Moonshot/Kimi provider
-- `ANTHROPIC_API_KEY` — for Claude provider (not yet implemented)
-- `LLM_PROVIDER` — active default provider (`mock` by default)
-
-## Evaluations
-
-Evaluation scripts in `evaluations/` that import `core` directly — no running server needed.
-
-```
-evaluations/
-├── __init__.py
-└── simulate/
-    ├── __init__.py
-    └── test_simulate.py
-```
+- **LLM models** use `"provider:model"` format (e.g. `"kimi:kimi-k2.5"`). Parsed by `parse_provider_model()` in `core/llm/factory.py`.
+- **Providers**: `mock` (testing), `kimi`, `claude` (via CLI), `openai`, `local`. Factory in `core/llm/factory.py`.
+- **Prompts** are format-string templates in `core/agents/prompts.py` (not a directory).
+- **Simulation** alternates doctor/patient turns via SSE streaming. Service layer in `core/services/simulation.py` handles DB persistence.
+- **API** endpoints all prefixed with `/api`. Routes in `backend/api/routes/`.
+- **Environment**: `.env` at project root. Key vars: `LLM_PROVIDER` (default `mock`), `KIMI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`. See `.env.example`.
 
 ## Testing
 
-71 tests covering agents, API routes, DB queries, LLM factory, and simulation runner. All use `MockProvider(delay=0)`. Test fixtures in `backend/tests/conftest.py`.
+Tests in `backend/tests/`. All use `MockProvider(delay=0)`. Fixtures in `conftest.py`.

@@ -1,37 +1,23 @@
 import json
-from pathlib import Path
 from core.agents.base import Agent
+from core.agents.prompts import JUDGE_BASE
 from core.llm.base import LLMProvider
-
-PROMPTS_DIR = Path(__file__).parent / "prompts"
+from core.types import Transcript
 
 
 class JudgeAgent(Agent):
     def __init__(self, provider: LLMProvider, model: str):
-        template_path = PROMPTS_DIR / "judge_base.txt"
-        system_prompt = template_path.read_text()
-        super().__init__(provider, model, system_prompt)
+        super().__init__(provider, model, JUDGE_BASE)
 
-    async def evaluate(
-        self,
-        transcript: list[dict],
-        quiz_responses: list[dict],
-        answer_key: list[dict],
-        mode: str,
-    ) -> dict:
+    async def evaluate(self, transcript: Transcript) -> dict:
         eval_message = (
-            f"## Mode\n{mode}\n\n"
-            f"## Transcript\n{json.dumps(transcript, indent=2)}\n\n"
-            f"## Quiz Responses\n{json.dumps(quiz_responses, indent=2)}\n\n"
-            f"## Answer Key\n{json.dumps(answer_key, indent=2)}"
+            f"## Transcript\n{json.dumps(transcript.to_dicts(), indent=2)}"
         )
         messages = [{"role": "user", "content": eval_message}]
         trace = await self.respond(messages)
         response = trace.output
 
-        # Extract JSON from the response
         try:
-            # Try to find JSON in the response (may be wrapped in markdown code block)
             json_str = response
             if "```" in response:
                 start = response.find("{")

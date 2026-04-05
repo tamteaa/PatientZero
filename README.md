@@ -4,7 +4,7 @@ Explaining Health: How AI Explanation Styles and Interaction Modalities Affect U
 
 ## Overview
 
-A simulation system that tests how different AI explanation styles (clinical vs. analogy-based) and interaction modes (static reading vs. interactive dialog) affect patient comprehension of medical information. Uses LLM-powered agents to simulate patient-doctor explanation scenarios.
+A simulation system that uses LLM-powered agents to simulate doctor-patient interactions around medical test results and evaluate patient comprehension.
 
 ## Tech Stack
 
@@ -19,7 +19,6 @@ PatientZero/
 ├── core/              # Domain logic (imported by the backend)
 ├── frontend/          # React app
 ├── backend/           # FastAPI HTTP layer
-├── plan/              # Implementation plans
 └── report.txt         # Research report
 ```
 

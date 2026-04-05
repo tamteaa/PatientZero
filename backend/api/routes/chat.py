@@ -42,12 +42,12 @@ def get_available_models():
 
 @router.post("/sessions")
 def create_new_session(request: CreateSessionRequest):
-    return create_session(db, request.model)
+    return create_session(db, request.model).to_dict()
 
 
 @router.get("/sessions")
 def get_all_sessions():
-    return list_sessions(db)
+    return [s.to_dict() for s in list_sessions(db)]
 
 
 @router.get("/sessions/{session_id}")
@@ -56,7 +56,7 @@ def get_session_detail(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     turns = get_turns(db, session_id)
-    return {**session, "turns": turns}
+    return {**session.to_dict(), "turns": [t.to_dict() for t in turns]}
 
 
 @router.patch("/sessions/{session_id}")
@@ -65,7 +65,7 @@ def update_session(session_id: str, request: UpdateSessionRequest):
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     update_session_model(db, session_id, request.model)
-    return get_session(db, session_id)
+    return get_session(db, session_id).to_dict()
 
 
 @router.delete("/sessions/{session_id}")
@@ -90,12 +90,10 @@ async def chat(request: ChatRequest):
         title = request.message[:50] + ("..." if len(request.message) > 50 else "")
         update_session_title(db, request.session_id, title)
 
-    messages = [
-        {"role": t["role"], "content": t["content"]}
-        for t in get_turns(db, request.session_id)
-    ]
+    turns = get_turns(db, request.session_id)
+    messages = [{"role": t.role, "content": t.content} for t in turns]
 
-    provider, model = parse_provider_model(session["model"])
+    provider, model = parse_provider_model(session.model)
 
     async def generate():
         full_response = ""

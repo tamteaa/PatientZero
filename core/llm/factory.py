@@ -1,6 +1,7 @@
 import os
 
 from core.llm.base import LLMProvider
+from core.llm.claude_cli_provider import ClaudeCLIProvider
 from core.llm.mock import MockProvider
 from core.llm.openai_provider import OpenAIProvider
 
@@ -20,6 +21,8 @@ def get_provider(provider_name: str) -> LLMProvider:
                 api_key=os.environ["KIMI_API_KEY"],
                 base_url="https://api.kimi.com/coding/v1",
             )
+        case "claude":
+            _providers[provider_name] = ClaudeCLIProvider()
         case _:
             raise ValueError(f"Unknown LLM provider: {provider_name}")
 

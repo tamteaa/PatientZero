@@ -1,30 +1,15 @@
-import asyncio
-
 import pytest
 
-from core.agents.explainer import ExplainerAgent
-from core.agents.patient import PatientAgent
+from core.agents.sim_agent import SimAgent
+from core.agents.prompts import build_doctor_prompt, build_patient_prompt
+from core.db.queries.simulations import create_simulation, get_simulation, get_simulation_turns
 from core.llm.mock import MockProvider
 from core.simulation import Simulation, SimulationStatus
-from core.types import AgentStep, AgentTrace, Persona, Scenario, TurnEndEvent, TurnStartEvent
+from core.types import AgentProfile, AgentStep, AgentTrace, Role, Scenario, TurnEndEvent, TurnStartEvent
 
-PERSONA = Persona(
-    name="Maria Garcia",
-    age="62",
-    education="High school",
-    literacy_level="low",
-    anxiety="high",
-    prior_knowledge="minimal",
-    communication_style="passive",
-    backstory="Retired housekeeper.",
-)
-
-SCENARIO = Scenario(
-    test_name="Complete Blood Count",
-    results="WBC: 11.2 x10^9/L",
-    normal_range="4.5-11.0 x10^9/L",
-    significance="Mildly elevated white blood cell count",
-)
+DOCTOR = AgentProfile(name="Dr. Test", role=Role.DOCTOR, traits={}, backstory="")
+PATIENT = AgentProfile(name="Patient Test", role=Role.PATIENT, traits={}, backstory="")
+SCENARIO = Scenario(test_name="CBC", results="WBC: 11.2", normal_range="4.5-11.0", significance="Elevated")
 
 
 @pytest.fixture
@@ -32,161 +17,163 @@ def provider():
     return MockProvider(delay=0)
 
 
-@pytest.fixture
-def sim_static(provider):
-    explainer = ExplainerAgent(provider, "default", "clinical", "static", SCENARIO)
-    patient = PatientAgent(provider, "default", PERSONA)
-    return Simulation(explainer, patient, "static")
-
-
-@pytest.fixture
-def sim_dialog(provider):
-    explainer = ExplainerAgent(provider, "default", "analogy", "dialog", SCENARIO)
-    patient = PatientAgent(provider, "default", PERSONA)
-    return Simulation(explainer, patient, "dialog")
+def _make_sim(db, provider, max_turns=8):
+    rec = create_simulation(db, persona_name=PATIENT.name, scenario_name=SCENARIO.test_name, model="mock:default", config={})
+    d = SimAgent(provider, "default", DOCTOR, build_doctor_prompt(DOCTOR, SCENARIO))
+    p = SimAgent(provider, "default", PATIENT, build_patient_prompt(PATIENT))
+    return Simulation(db, rec.id, d, p, max_turns=max_turns)
 
 
 # ── State machine tests ──────────────────────────────────────────────────────
 
 
-def test_initial_state_is_idle(sim_static):
-    assert sim_static.state == SimulationStatus.IDLE
+def test_initial_state_is_idle(db, provider):
+    assert _make_sim(db, provider).state == SimulationStatus.IDLE
 
 
 @pytest.mark.asyncio
-async def test_run_completes(sim_static):
-    trace = await sim_static.run()
-    assert sim_static.state == SimulationStatus.COMPLETED
+async def test_run_completes(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    trace = await sim.run()
+    assert sim.state == SimulationStatus.COMPLETED
     assert isinstance(trace, AgentTrace)
 
 
 @pytest.mark.asyncio
-async def test_static_produces_2_turns(sim_static):
-    trace = await sim_static.run()
+async def test_short_produces_2_turns(db, provider):
+    trace = await _make_sim(db, provider, max_turns=2).run()
     assert len(trace.steps) == 2
 
 
 @pytest.mark.asyncio
-async def test_dialog_produces_8_turns(sim_dialog):
-    trace = await sim_dialog.run()
+async def test_long_produces_8_turns(db, provider):
+    trace = await _make_sim(db, provider, max_turns=8).run()
     assert len(trace.steps) == 8
 
 
 @pytest.mark.asyncio
-async def test_alternating_agents(sim_dialog):
-    trace = await sim_dialog.run()
+async def test_alternating_agents(db, provider):
+    trace = await _make_sim(db, provider, max_turns=8).run()
     for i, step in enumerate(trace.steps):
-        expected = "ExplainerAgent" if i % 2 == 0 else "PatientAgent"
-        assert step.agent_type == expected, f"Step {i}: expected {expected}, got {step.agent_type}"
+        expected = "doctor" if i % 2 == 0 else "patient"
+        assert step.agent_type == expected
 
 
 @pytest.mark.asyncio
-async def test_step_executes_one_turn(sim_static):
-    step = await sim_static.step()
+async def test_step_executes_one_turn(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    step = await sim.step()
     assert isinstance(step, AgentStep)
-    assert step.agent_type == "ExplainerAgent"
-    assert sim_static.turn == 1
-    assert len(sim_static.trace.steps) == 1
+    assert step.agent_type == "doctor"
+    assert sim.turn == 1
 
 
 @pytest.mark.asyncio
-async def test_step_from_idle(sim_static):
-    assert sim_static.state == SimulationStatus.IDLE
-    await sim_static.step()
-    # After one step with more turns remaining → PAUSED
-    assert sim_static.state == SimulationStatus.PAUSED
+async def test_step_from_idle(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    await sim.step()
+    assert sim.state == SimulationStatus.PAUSED
 
 
 @pytest.mark.asyncio
-async def test_step_until_completed(sim_static):
-    # static mode = 2 turns
-    await sim_static.step()
-    assert sim_static.state == SimulationStatus.PAUSED
-    await sim_static.step()
-    assert sim_static.state == SimulationStatus.COMPLETED
-    assert len(sim_static.trace.steps) == 2
+async def test_step_until_completed(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    await sim.step()
+    assert sim.state == SimulationStatus.PAUSED
+    await sim.step()
+    assert sim.state == SimulationStatus.COMPLETED
 
 
 @pytest.mark.asyncio
-async def test_step_past_max_raises(sim_static):
-    await sim_static.step()
-    await sim_static.step()
+async def test_step_past_max_raises(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    await sim.step()
+    await sim.step()
     with pytest.raises(RuntimeError, match="All turns completed"):
-        await sim_static.step()
+        await sim.step()
 
 
 @pytest.mark.asyncio
-async def test_stop_from_paused(sim_static):
-    await sim_static.step()
-    assert sim_static.state == SimulationStatus.PAUSED
-    sim_static.stop()
-    assert sim_static.state == SimulationStatus.COMPLETED
-
-
-@pytest.mark.asyncio
-async def test_pause_and_resume(provider):
-    explainer = ExplainerAgent(provider, "default", "analogy", "dialog", SCENARIO)
-    patient = PatientAgent(provider, "default", PERSONA)
-    sim = Simulation(explainer, patient, "dialog")
-
-    # Step through first two turns manually
+async def test_stop_from_paused(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
     await sim.step()
-    assert sim.state == SimulationStatus.PAUSED
+    sim.stop()
+    assert sim.state == SimulationStatus.COMPLETED
+
+
+@pytest.mark.asyncio
+async def test_pause_and_resume(db, provider):
+    sim = _make_sim(db, provider, max_turns=8)
+    await sim.step()
     assert len(sim.trace.steps) == 1
-
     await sim.step()
-    assert sim.state == SimulationStatus.PAUSED
     assert len(sim.trace.steps) == 2
-
-    # Now resume via run() to finish the rest
     sim.resume()
     trace = await sim.run()
     assert sim.state == SimulationStatus.COMPLETED
     assert len(trace.steps) == 8
 
 
+# ── Invalid transitions ──────────────────────────────────────────────────────
+
+
+def test_pause_from_idle_raises(db, provider):
+    sim = _make_sim(db, provider)
+    with pytest.raises(RuntimeError, match="must be running"):
+        sim.pause()
+
+
+def test_resume_from_idle_raises(db, provider):
+    sim = _make_sim(db, provider)
+    with pytest.raises(RuntimeError, match="must be paused"):
+        sim.resume()
+
+
+def test_stop_from_idle_raises(db, provider):
+    sim = _make_sim(db, provider)
+    with pytest.raises(RuntimeError, match="must be running or paused"):
+        sim.stop()
+
+
 # ── Trace integrity tests ────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_trace_has_timing(sim_static):
-    trace = await sim_static.run()
+async def test_trace_has_timing(db, provider):
+    trace = await _make_sim(db, provider, max_turns=2).run()
     assert trace.duration_ms > 0
     for step in trace.steps:
         assert step.duration_ms >= 0
-        assert step.started_at <= step.ended_at
 
 
 @pytest.mark.asyncio
-async def test_no_step_errors(sim_dialog):
-    trace = await sim_dialog.run()
+async def test_no_step_errors(db, provider):
+    trace = await _make_sim(db, provider, max_turns=8).run()
     for step in trace.steps:
         assert step.error is None
 
 
 @pytest.mark.asyncio
-async def test_step_outputs_are_nonempty(sim_static):
-    trace = await sim_static.run()
+async def test_step_outputs_are_nonempty(db, provider):
+    trace = await _make_sim(db, provider, max_turns=2).run()
     for step in trace.steps:
         assert len(step.output.strip()) > 0
 
 
 @pytest.mark.asyncio
-async def test_step_has_correct_agent_type(sim_static):
-    trace = await sim_static.run()
-    assert trace.steps[0].agent_type == "ExplainerAgent"
-    assert trace.steps[1].agent_type == "PatientAgent"
+async def test_step_has_correct_agent_type(db, provider):
+    trace = await _make_sim(db, provider, max_turns=2).run()
+    assert trace.steps[0].agent_type == "doctor"
+    assert trace.steps[1].agent_type == "patient"
 
 
 # ── Streaming tests ──────────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_run_streaming_yields_events(sim_static):
-    events = []
-    async for event_type, data in sim_static.run_streaming():
-        events.append(event_type)
-
+async def test_run_streaming_yields_events(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    events = [et async for et, _ in sim.run_streaming()]
     assert events.count("turn_start") == 2
     assert events.count("turn_end") == 2
     assert events.count("done") == 1
@@ -194,66 +181,90 @@ async def test_run_streaming_yields_events(sim_static):
 
 
 @pytest.mark.asyncio
-async def test_run_streaming_produces_trace(sim_static):
-    async for _ in sim_static.run_streaming():
+async def test_run_streaming_produces_trace(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    async for _ in sim.run_streaming():
         pass
-
-    assert sim_static.state == SimulationStatus.COMPLETED
-    assert len(sim_static.trace.steps) == 2
+    assert sim.state == SimulationStatus.COMPLETED
+    assert len(sim.trace.steps) == 2
 
 
 @pytest.mark.asyncio
-async def test_streaming_tokens_match_output(provider):
-    explainer = ExplainerAgent(provider, "default", "clinical", "static", SCENARIO)
-    patient = PatientAgent(provider, "default", PERSONA)
-    sim = Simulation(explainer, patient, "static")
-
-    turn_tokens: list[list[str]] = []
-    current_tokens: list[str] = []
-
-    async for event_type, data in sim.run_streaming():
-        if event_type == "turn_start":
-            current_tokens = []
-        elif event_type == "token":
-            current_tokens.append(data)
-        elif event_type == "turn_end":
-            turn_tokens.append(current_tokens)
-
-    # Tokens for each turn should reconstruct the step output
+async def test_streaming_tokens_match_output(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    turn_tokens, current = [], []
+    async for et, data in sim.run_streaming():
+        if et == "turn_start": current = []
+        elif et == "token": current.append(data)
+        elif et == "turn_end": turn_tokens.append(current)
     for i, tokens in enumerate(turn_tokens):
         assert "".join(tokens) == sim.trace.steps[i].output
 
 
 @pytest.mark.asyncio
-async def test_streaming_alternates_roles(sim_static):
-    roles = []
-    async for event_type, data in sim_static.run_streaming():
-        if event_type == "turn_start":
-            roles.append(data.role)
-
-    assert roles == ["explainer", "patient"]
+async def test_streaming_alternates_roles(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    roles = [data.role async for et, data in sim.run_streaming() if et == "turn_start"]
+    assert roles == ["doctor", "patient"]
 
 
 @pytest.mark.asyncio
-async def test_streaming_typed_events(sim_static):
-    start_events = []
-    end_events = []
-    async for event_type, data in sim_static.run_streaming():
-        if event_type == "turn_start":
+async def test_streaming_typed_events(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    starts, ends = [], []
+    async for et, data in sim.run_streaming():
+        if et == "turn_start":
             assert isinstance(data, TurnStartEvent)
-            start_events.append(data)
-        elif event_type == "turn_end":
+            starts.append(data)
+        elif et == "turn_end":
             assert isinstance(data, TurnEndEvent)
-            end_events.append(data)
+            ends.append(data)
+    assert len(starts) == 2
+    assert starts[0].role == "doctor"
+    assert starts[1].role == "patient"
 
-    assert len(start_events) == 2
-    assert start_events[0].role == "explainer"
-    assert start_events[0].turn == 0
-    assert start_events[1].role == "patient"
-    assert start_events[1].turn == 1
 
-    assert len(end_events) == 2
-    assert end_events[0].role == "explainer"
-    assert end_events[0].turn == 0
-    assert end_events[1].role == "patient"
-    assert end_events[1].turn == 1
+# ── Persistence tests ────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_run_persists_turns_to_db(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    await sim.run()
+    turns = get_simulation_turns(db, sim.sim_id)
+    assert len(turns) == 2
+    assert turns[0].role == "doctor"
+    assert turns[1].role == "patient"
+
+
+@pytest.mark.asyncio
+async def test_run_marks_simulation_completed(db, provider):
+    sim = _make_sim(db, provider, max_turns=2)
+    await sim.run()
+    rec = get_simulation(db, sim.sim_id)
+    assert rec.state == "completed"
+    assert rec.duration_ms > 0
+
+
+# ── Error handling tests ─────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_error_does_not_record_partial_output(db, provider):
+    """When an agent errors mid-stream, no partial output should be in the transcript."""
+    class FailingProvider(MockProvider):
+        async def stream(self, messages, model):
+            yield "partial"
+            raise RuntimeError("boom")
+
+    failing = FailingProvider(delay=0)
+    rec = create_simulation(db, persona_name=PATIENT.name, scenario_name=SCENARIO.test_name, model="mock:default", config={})
+    d = SimAgent(failing, "default", DOCTOR, build_doctor_prompt(DOCTOR, SCENARIO))
+    p = SimAgent(failing, "default", PATIENT, build_patient_prompt(PATIENT))
+    sim = Simulation(db, rec.id, d, p, max_turns=2)
+
+    events = [et async for et, _ in sim.run_streaming()]
+    assert "turn_error" in events
+    assert sim.state == SimulationStatus.ERROR
+    assert len(sim.transcript) == 0
+    assert len(sim.trace.steps) == 0

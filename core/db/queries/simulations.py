@@ -2,24 +2,31 @@ import json
 import uuid
 
 from core.db.database import Database
+from core.types import SimulationRecord, SimulationTurnRecord
+
+
+def _sim(row) -> SimulationRecord | None:
+    return SimulationRecord(**dict(row)) if row else None
+
+
+def _turn(row) -> SimulationTurnRecord:
+    return SimulationTurnRecord(**dict(row))
 
 
 def create_simulation(
     db: Database,
     persona_name: str,
     scenario_name: str,
-    style: str,
-    mode: str,
     model: str,
     config: dict,
-) -> dict:
+) -> SimulationRecord:
     sim_id = str(uuid.uuid4())
     db.execute(
-        """INSERT INTO simulations (id, persona_name, scenario_name, style, mode, model, config_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (sim_id, persona_name, scenario_name, style, mode, model, json.dumps(config)),
+        """INSERT INTO simulations (id, persona_name, scenario_name, model, config_json)
+           VALUES (?, ?, ?, ?, ?)""",
+        (sim_id, persona_name, scenario_name, model, json.dumps(config)),
     )
-    return db.fetch_one("SELECT * FROM simulations WHERE id = ?", (sim_id,))
+    return _sim(db.conn.execute("SELECT * FROM simulations WHERE id = ?", (sim_id,)).fetchone())
 
 
 def complete_simulation(db: Database, sim_id: str, duration_ms: float) -> None:
@@ -53,19 +60,21 @@ def add_simulation_turn(
     )
 
 
-def get_simulation(db: Database, sim_id: str) -> dict | None:
-    return db.fetch_one("SELECT * FROM simulations WHERE id = ?", (sim_id,))
+def get_simulation(db: Database, sim_id: str) -> SimulationRecord | None:
+    return _sim(db.conn.execute("SELECT * FROM simulations WHERE id = ?", (sim_id,)).fetchone())
 
 
-def list_simulations(db: Database) -> list[dict]:
-    return db.fetch_all("SELECT * FROM simulations ORDER BY created_at DESC, rowid DESC")
+def list_simulations(db: Database) -> list[SimulationRecord]:
+    rows = db.conn.execute("SELECT * FROM simulations ORDER BY created_at DESC, rowid DESC").fetchall()
+    return [SimulationRecord(**dict(r)) for r in rows]
 
 
-def get_simulation_turns(db: Database, sim_id: str) -> list[dict]:
-    return db.fetch_all(
+def get_simulation_turns(db: Database, sim_id: str) -> list[SimulationTurnRecord]:
+    rows = db.conn.execute(
         "SELECT * FROM simulation_turns WHERE simulation_id = ? ORDER BY turn_number",
         (sim_id,),
-    )
+    ).fetchall()
+    return [_turn(r) for r in rows]
 
 
 def delete_simulation(db: Database, sim_id: str) -> None:

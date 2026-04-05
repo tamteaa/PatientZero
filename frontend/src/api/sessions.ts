@@ -1,5 +1,5 @@
 import type { Session, SessionDetail } from '@/types/chat';
-import type { Evaluation, Persona, Scenario, SimulationConfig, SimulationDetail, SimulationRole, SimulationSummary } from '@/types/simulation';
+import type { AgentProfile, Evaluation, Scenario, SimulationConfig, SimulationDetail, SimulationRole, SimulationSummary } from '@/types/simulation';
 import { client, API_BASE } from './client';
 
 // ── Sessions ────────────────────────────────────────────────────────────────
@@ -28,20 +28,30 @@ export async function deleteSession(id: string): Promise<void> {
   await client.delete(`/sessions/${id}`);
 }
 
-// ── Models / Personas / Scenarios ───────────────────────────────────────────
+// ── Models / Personas / Doctors / Scenarios / Styles ────────────────────────
 
 export async function listModels(): Promise<string[]> {
   const { data } = await client.get('/models');
   return data;
 }
 
-export async function listPersonas(): Promise<Persona[]> {
+export async function listPersonas(): Promise<AgentProfile[]> {
   const { data } = await client.get('/personas');
+  return data;
+}
+
+export async function listDoctors(): Promise<AgentProfile[]> {
+  const { data } = await client.get('/doctors');
   return data;
 }
 
 export async function listScenarios(): Promise<Scenario[]> {
   const { data } = await client.get('/scenarios');
+  return data;
+}
+
+export async function listStyles(): Promise<string[]> {
+  const { data } = await client.get('/styles');
   return data;
 }
 
@@ -61,6 +71,18 @@ export async function deleteSimulation(id: string): Promise<void> {
   await client.delete(`/simulations/${id}`);
 }
 
+export async function pauseSimulation(id: string): Promise<void> {
+  await client.post(`/simulations/${id}/pause`);
+}
+
+export async function resumeSimulation(id: string): Promise<void> {
+  await client.post(`/simulations/${id}/resume`);
+}
+
+export async function stopSimulation(id: string): Promise<void> {
+  await client.post(`/simulations/${id}/stop`);
+}
+
 export async function evaluateSimulation(id: string, model: string): Promise<Evaluation> {
   const { data } = await client.post(`/simulations/${id}/evaluate`, { model });
   return data;
@@ -74,71 +96,6 @@ export async function getSimulationEvaluation(id: string): Promise<Evaluation | 
 export async function listEvaluations(): Promise<Evaluation[]> {
   const { data } = await client.get('/evaluations');
   return data;
-}
-
-// ── Batch run SSE ────────────────────────────────────────────────────────────
-
-export interface BatchEvent {
-  type: 'batch_start' | 'sim_start' | 'sim_skip' | 'sim_done' | 'batch_done';
-  current?: number;
-  total: number;
-  persona?: string;
-  scenario?: string;
-  style?: string;
-  mode?: string;
-  sim_id?: string;
-  state?: 'completed' | 'error';
-  duration_ms?: number;
-  error?: string;
-  succeeded?: number;
-  failed?: number;
-  skipped?: number;
-}
-
-export async function runBatch(
-  model: string,
-  skipExisting: boolean,
-  onEvent: (event: BatchEvent) => void,
-  signal?: AbortSignal,
-): Promise<void> {
-  const response = await fetch(`${API_BASE}/simulate/batch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, skip_existing: skipExisting }),
-    signal,
-  });
-
-  const reader = response.body?.getReader();
-  if (!reader) return;
-
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let currentEvent = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      if (line.startsWith('event:')) {
-        currentEvent = line.slice(6).trim();
-        continue;
-      }
-      if (line.startsWith('data:')) {
-        const raw = line.slice(5).trim();
-        if (!raw) continue;
-        try {
-          const parsed = JSON.parse(raw);
-          onEvent({ type: currentEvent as BatchEvent['type'], ...parsed });
-        } catch { /* skip */ }
-        currentEvent = '';
-      }
-    }
-  }
 }
 
 // ── Chat SSE ────────────────────────────────────────────────────────────────
@@ -189,62 +146,68 @@ export async function sendMessage(
   onDone();
 }
 
-// ── Simulation SSE ──────────────────────────────────────────────────────────
+// ── Simulation ──────────────────────────────────────────────────────────────
 
-export async function runSimulation(
-  config: SimulationConfig,
-  onTurnStart: (role: SimulationRole, turn: number, simulationId?: string) => void,
-  onToken: (token: string) => void,
-  onTurnEnd: (role: SimulationRole, turn: number) => void,
-  onDone: (simulationId: string) => void,
-) {
-  const response = await fetch(`${API_BASE}/simulate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(config),
-  });
+export async function startSimulation(config: SimulationConfig): Promise<string> {
+  const { data } = await client.post('/simulate', config);
+  return data.simulation_id;
+}
 
-  const reader = response.body?.getReader();
-  if (!reader) return;
+export interface SimulationStreamCallbacks {
+  onTurnStart?: (role: SimulationRole, turn: number) => void;
+  onToken?: (token: string) => void;
+  onTurnEnd?: (role: SimulationRole, turn: number) => void;
+  onDone?: () => void;
+}
 
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let currentEvent = '';
+export function subscribeToSimulation(
+  simId: string,
+  callbacks: SimulationStreamCallbacks,
+  signal?: AbortSignal,
+): void {
+  const url = `${API_BASE}/simulations/${simId}/stream`;
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  fetch(url, { signal }).then(async (response) => {
+    const reader = response.body?.getReader();
+    if (!reader) return;
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let currentEvent = '';
 
-    for (const line of lines) {
-      if (line.startsWith('event:')) {
-        currentEvent = line.slice(6).trim();
-        continue;
-      }
-      if (line.startsWith('data:')) {
-        const raw = line.slice(5).trim();
-        if (!raw) continue;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-        try {
-          const parsed = JSON.parse(raw);
-          if (currentEvent === 'turn_start') {
-            onTurnStart(parsed.role as SimulationRole, parsed.turn, parsed.simulation_id);
-          } else if (currentEvent === 'turn_end') {
-            onTurnEnd(parsed.role as SimulationRole, parsed.turn);
-          } else if (currentEvent === 'done') {
-            onDone(parsed.simulation_id);
-            return;
-          } else if (parsed.token !== undefined) {
-            onToken(parsed.token);
-          }
-        } catch {
-          // skip non-JSON
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          currentEvent = line.slice(6).trim();
+          continue;
         }
-        currentEvent = '';
+        if (line.startsWith('data:')) {
+          const raw = line.slice(5).trim();
+          if (!raw) continue;
+          try {
+            const parsed = JSON.parse(raw);
+            if (currentEvent === 'turn_start') {
+              callbacks.onTurnStart?.(parsed.role as SimulationRole, parsed.turn);
+            } else if (currentEvent === 'turn_end') {
+              callbacks.onTurnEnd?.(parsed.role as SimulationRole, parsed.turn);
+            } else if (currentEvent === 'done') {
+              callbacks.onDone?.();
+              return;
+            } else if (parsed.token !== undefined) {
+              callbacks.onToken?.(parsed.token);
+            }
+          } catch { /* skip */ }
+          currentEvent = '';
+        }
       }
     }
-  }
+    callbacks.onDone?.();
+  }).catch(() => {});
 }

@@ -1,19 +1,29 @@
 import uuid
 from core.db.database import Database
+from core.types import SessionRecord, TurnRecord
 
 
-def create_session(db: Database, model: str = "mock:default") -> dict:
+def _session(row) -> SessionRecord | None:
+    return SessionRecord(**dict(row)) if row else None
+
+
+def _turn(row) -> TurnRecord:
+    return TurnRecord(**dict(row))
+
+
+def create_session(db: Database, model: str = "mock:default") -> SessionRecord:
     session_id = str(uuid.uuid4())
     db.execute("INSERT INTO sessions (id, model) VALUES (?, ?)", (session_id, model))
-    return db.fetch_one("SELECT * FROM sessions WHERE id = ?", (session_id,))
+    return _session(db.conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone())
 
 
-def get_session(db: Database, session_id: str) -> dict | None:
-    return db.fetch_one("SELECT * FROM sessions WHERE id = ?", (session_id,))
+def get_session(db: Database, session_id: str) -> SessionRecord | None:
+    return _session(db.conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone())
 
 
-def list_sessions(db: Database) -> list[dict]:
-    return db.fetch_all("SELECT * FROM sessions ORDER BY created_at DESC, rowid DESC")
+def list_sessions(db: Database) -> list[SessionRecord]:
+    rows = db.conn.execute("SELECT * FROM sessions ORDER BY created_at DESC, rowid DESC").fetchall()
+    return [SessionRecord(**dict(r)) for r in rows]
 
 
 def update_session_title(db: Database, session_id: str, title: str):
@@ -36,16 +46,17 @@ def create_turn(db: Database, session_id: str, role: str, content: str, turn_num
     )
 
 
-def get_turns(db: Database, session_id: str) -> list[dict]:
-    return db.fetch_all(
+def get_turns(db: Database, session_id: str) -> list[TurnRecord]:
+    rows = db.conn.execute(
         "SELECT * FROM turns WHERE session_id = ? ORDER BY turn_number",
         (session_id,),
-    )
+    ).fetchall()
+    return [_turn(r) for r in rows]
 
 
 def get_turn_count(db: Database, session_id: str) -> int:
-    result = db.fetch_one(
+    row = db.conn.execute(
         "SELECT COUNT(*) as count FROM turns WHERE session_id = ?",
         (session_id,),
-    )
-    return result["count"] if result else 0
+    ).fetchone()
+    return row["count"] if row else 0

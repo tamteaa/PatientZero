@@ -11,6 +11,10 @@ class Agent:
         self.model = model
         self.system_prompt = system_prompt
 
+    @property
+    def agent_type(self) -> str:
+        return type(self).__name__
+
     def _build_messages(self, messages: list[dict]) -> list[dict]:
         """Prepend system prompt to message history."""
         return [{"role": "system", "content": self.system_prompt}] + messages
@@ -33,7 +37,7 @@ class Agent:
         duration_ms = (ended_at - started_at).total_seconds() * 1000
 
         return AgentStep(
-            agent_type=type(self).__name__,
+            agent_type=self.agent_type,
             model=self.model,
             system_prompt=self.system_prompt,
             input_messages=input_messages,

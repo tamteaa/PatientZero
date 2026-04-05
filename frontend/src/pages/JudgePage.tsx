@@ -210,7 +210,7 @@ export function JudgePage() {
                         <span className="text-xs text-muted-foreground truncate">{sim.scenario_name}</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{sim.style} + {sim.mode}</span>
+                        <span>{sim.style}</span>
                         <span>·</span>
                         <span className="font-mono">{sim.model}</span>
                         {evaluation && (

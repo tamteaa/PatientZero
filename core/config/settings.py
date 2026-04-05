@@ -13,5 +13,6 @@ AVAILABLE_MODELS = [
     "kimi:kimi-k2.5",
     "claude:claude-sonnet-4-20250514",
     "claude:claude-opus-4-20250514",
+    "claude:claude-haiku-4-5-20251001",
     "local:default",
 ]

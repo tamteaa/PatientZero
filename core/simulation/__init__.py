@@ -1,2 +1,2 @@
-from core.simulation.runner import Simulation
-from core.types import SimulationState, SimulationStatus
+from core.simulation.simulation import Simulation
+from core.types import SimulationStatus

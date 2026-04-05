@@ -1,4 +1,9 @@
 from core.db.database import Database
+from core.types import EvaluationRecord
+
+
+def _eval(row) -> EvaluationRecord | None:
+    return EvaluationRecord(**dict(row)) if row else None
 
 
 def create_evaluation(
@@ -6,7 +11,7 @@ def create_evaluation(
     simulation_id: str,
     model: str,
     result: dict,
-) -> dict:
+) -> EvaluationRecord:
     db.execute(
         """INSERT INTO evaluations (
             simulation_id, model,
@@ -26,26 +31,31 @@ def create_evaluation(
             result.get("justification"),
         ),
     )
-    return db.fetch_one(
-        "SELECT * FROM evaluations WHERE simulation_id = ? ORDER BY id DESC LIMIT 1",
-        (simulation_id,),
+    return _eval(
+        db.conn.execute(
+            "SELECT * FROM evaluations WHERE simulation_id = ? ORDER BY id DESC LIMIT 1",
+            (simulation_id,),
+        ).fetchone()
     )
 
 
-def get_evaluation(db: Database, simulation_id: str) -> dict | None:
-    return db.fetch_one(
-        "SELECT * FROM evaluations WHERE simulation_id = ? ORDER BY id DESC LIMIT 1",
-        (simulation_id,),
+def get_evaluation(db: Database, simulation_id: str) -> EvaluationRecord | None:
+    return _eval(
+        db.conn.execute(
+            "SELECT * FROM evaluations WHERE simulation_id = ? ORDER BY id DESC LIMIT 1",
+            (simulation_id,),
+        ).fetchone()
     )
 
 
-def list_evaluations(db: Database) -> list[dict]:
-    return db.fetch_all(
-        """SELECT e.*, s.persona_name, s.scenario_name, s.style, s.mode
+def list_evaluations(db: Database) -> list[EvaluationRecord]:
+    rows = db.conn.execute(
+        """SELECT e.*, s.persona_name, s.scenario_name
            FROM evaluations e
            JOIN simulations s ON s.id = e.simulation_id
            ORDER BY e.created_at DESC""",
-    )
+    ).fetchall()
+    return [EvaluationRecord(**dict(r)) for r in rows]
 
 
 def delete_evaluation(db: Database, simulation_id: str) -> None:
