@@ -7,6 +7,7 @@ import { SimulationsPage } from '@/pages/SimulationsPage';
 import { SimulationDetailPage } from '@/pages/SimulationDetailPage';
 
 import { JudgePage } from '@/pages/JudgePage';
+import { AnalysisPage } from '@/pages/AnalysisPage';
 
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
           <Route path="simulations/:simId" element={<SimulationDetailPage />} />
 
           <Route path="judge" element={<JudgePage />} />
+          <Route path="analysis" element={<AnalysisPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -3,8 +3,8 @@ import { NavItem } from './NavItem';
 import {
   Play,
   LayoutDashboard,
-
   Scale,
+  BarChart2,
 } from 'lucide-react';
 
 export function AppSidebar() {
@@ -15,10 +15,11 @@ export function AppSidebar() {
       </div>
       <ScrollArea className="flex-1">
         <div className="flex flex-col gap-1 p-3">
-          <NavItem to="/simulations" icon={Play} label="Simulations" />
           <NavItem to="/dashboard" icon={LayoutDashboard} label="Dashboard" />
+          <NavItem to="/simulations" icon={Play} label="Simulations" />
 
           <NavItem to="/judge" icon={Scale} label="Judge" />
+          <NavItem to="/analysis" icon={BarChart2} label="Analysis" />
         </div>
       </ScrollArea>
     </div>
