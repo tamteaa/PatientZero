@@ -5,7 +5,7 @@ from core.llm.mock import MockProvider
 from core.types import AgentProfile, AgentStep, Role, Scenario
 
 PROFILE = AgentProfile(name="Dr. Test", role=Role.DOCTOR, traits={"empathy": "high"}, backstory="Test doctor.")
-SCENARIO = Scenario(test_name="Complete Blood Count", results="WBC: 11.2", normal_range="4.5-11.0", significance="Elevated WBC")
+SCENARIO = Scenario(name="CBC", description="Medical Test: Complete Blood Count\nResults: WBC: 11.2\nNormal Range: 4.5-11.0\nClinical Significance: Elevated WBC")
 
 
 @pytest.fixture

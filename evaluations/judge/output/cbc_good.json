@@ -1,0 +1,13 @@
+{
+  "model": "claude:claude-haiku-4-5-20251001",
+  "timestamp": "2026-04-05T22:43:58.658392+00:00",
+  "result": {
+    "comprehension_score": 90,
+    "factual_recall": 80,
+    "applied_reasoning": 72,
+    "explanation_quality": 87,
+    "interaction_quality": 72,
+    "confidence_comprehension_gap": "Moderate - Patient shows appropriate concern and correct understanding of key points, but hasn't asked about root causes, warning symptoms, or specifics of follow-up. Surface-level comprehension may mask knowledge gaps.",
+    "justification": "Patient accurately grasped the main findings and urgency level, demonstrating good comprehension. However, factual recall lacked specific numerical values, and there was minimal applied reasoning or interactive engagement. The doctor's explanation was clear and medically sound, but the interaction would benefit from more bidirectional communication\u2014checking understanding, discussing causation, and exploring symptoms or next steps."
+  }
+}

@@ -1,10 +1,7 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
 class Scenario:
-    test_name: str
-    results: str
-    normal_range: str
-    significance: str
-    keywords: list[str] = field(default_factory=list)
+    name: str
+    description: str

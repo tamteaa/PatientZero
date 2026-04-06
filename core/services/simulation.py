@@ -38,7 +38,7 @@ class SimulationService:
         sim_record = create_simulation(
             self.db,
             persona_name=patient_profile.name,
-            scenario_name=scenario.test_name,
+            scenario_name=scenario.name,
             model=model,
             config={
                 "doctor": asdict(doctor_profile),
@@ -54,7 +54,7 @@ class SimulationService:
 
         self.logger.start(sim_id, {
             "Model": model,
-            "Scenario": scenario.test_name,
+            "Scenario": scenario.name,
             "Doctor": doctor_profile.name,
             "Patient": patient_profile.name,
         })

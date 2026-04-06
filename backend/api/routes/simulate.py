@@ -81,7 +81,7 @@ async def simulate(request: SimulateRequest):
     doctor = _find_profile(DOCTOR_PROFILES, request.doctor_name)
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor profile not found")
-    scenario = next((s for s in SCENARIOS if s.test_name == request.scenario_name), None)
+    scenario = next((s for s in SCENARIOS if s.name == request.scenario_name), None)
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
 

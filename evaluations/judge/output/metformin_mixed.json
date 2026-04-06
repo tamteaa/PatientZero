@@ -1,0 +1,13 @@
+{
+  "model": "claude:claude-haiku-4-5-20251001",
+  "timestamp": "2026-04-05T22:45:49.764352+00:00",
+  "result": {
+    "comprehension_score": 70,
+    "factual_recall": 68,
+    "applied_reasoning": 70,
+    "explanation_quality": 76,
+    "interaction_quality": 65,
+    "confidence_comprehension_gap": "Patient appears confident ('got it,' 'OK') but demonstrates incomplete retention. Successfully captured dose, timing, and side effect severity levels, but missed the escalation plan entirely (increase to 500mg twice daily after 2 weeks). Also simplified side effects to generic 'stomach stuff' rather than recalling specific examples (nausea, diarrhea).",
+    "justification": "Patient demonstrates basic comprehension of critical points: dose (500mg), timing (with dinner), and the key distinction between minor side effects that resolve vs. serious ones requiring immediate physician contact. Their proactive question about side effects and practical restatement show moderate applied reasoning. However, factual recall is incomplete\u2014they omitted the escalation timeline and were imprecise about specific side effects. The doctor's explanation was clear and appropriately focused but lacked comprehension checks (e.g., 'Does that make sense?' or 'Do you have other questions?'). No attempt to clarify what 'tolerating it well' means or verify understanding of the 2-week timeline. The patient's confident tone masks incomplete understanding, a modest confidence-comprehension gap."
+  }
+}

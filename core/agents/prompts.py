@@ -15,10 +15,7 @@ You are a medical professional explaining test results to a patient through conv
 {profile}
 
 ## Scenario
-Medical Test: {test_name}
-Results: {results}
-Normal Range: {normal_range}
-Clinical Significance: {significance}
+{scenario}
 
 ## Instructions
 - Explain these test results clearly and accurately
@@ -95,10 +92,7 @@ def _format_profile(profile: AgentProfile) -> str:
 def build_doctor_prompt(profile: AgentProfile, scenario: Scenario) -> str:
     return _DOCTOR.format(
         profile=_format_profile(profile),
-        test_name=scenario.test_name,
-        results=scenario.results,
-        normal_range=scenario.normal_range,
-        significance=scenario.significance,
+        scenario=scenario.description,
     )
 
 

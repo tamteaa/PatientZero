@@ -1,7 +1,13 @@
 from core.types import Message, Transcript
 
-LABEL = "CBC — poor comprehension"
-EXPECTED_RANGE = (0, 40)
+LABEL = "CBC — poor comprehension (catastrophizing)"
+EXPECTED = {
+    "comprehension_score": (0, 45),
+    "factual_recall": (0, 30),
+    "applied_reasoning": (0, 40),
+    "explanation_quality": (55, 100),
+    "interaction_quality": (30, 70),
+}
 
 TRANSCRIPT = Transcript(messages=[
     Message(

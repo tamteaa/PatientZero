@@ -1,7 +1,13 @@
 from core.types import Message, Transcript
 
 LABEL = "Metformin — mixed comprehension"
-EXPECTED_RANGE = (45, 75)
+EXPECTED = {
+    "comprehension_score": (45, 80),
+    "factual_recall": (50, 85),
+    "applied_reasoning": (50, 85),
+    "explanation_quality": (65, 100),
+    "interaction_quality": (55, 100),
+}
 
 TRANSCRIPT = Transcript(messages=[
     Message(
