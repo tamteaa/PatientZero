@@ -4,11 +4,11 @@
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Profile Generator | Partial | Hardcoded profiles only, no generation from data/distributions |
-| Scenario Generator | Done | Static (from distributions) + LLM generators |
+| Profile Generator | Done | Static generators wired to /personas/generate and /doctors/generate |
+| Scenario Generator | Done | Static + LLM generators, wired to /scenarios/generate |
 | Simulation Engine | Done | Full state machine, streaming, pause/resume/stop |
 | Evaluation Layer | Done | 5 dimensions + confidence-comprehension gap, 10 test cases, cached |
-| Analysis | Minimal | API lists raw records, no aggregation or pattern detection |
+| Analysis | Done | Aggregation by patient/doctor traits + scenario, worst combinations, CSV export |
 | Feedback Loop | Not started | Depends on analysis |
 
 ---

@@ -1,6 +1,6 @@
 import json
 
-from core.generators.base import ScenarioGenerator
+from core.generators.base import AsyncScenarioGenerator
 from core.llm.base import LLMProvider
 from core.types import Scenario
 
@@ -30,7 +30,7 @@ Example:
 Return ONLY valid JSON. No markdown, no code fences, no explanation."""
 
 
-class LLMScenarioGenerator(ScenarioGenerator):
+class LLMScenarioGenerator(AsyncScenarioGenerator):
     """Generates scenarios by prompting an LLM."""
 
     def __init__(self, provider: LLMProvider, model: str):

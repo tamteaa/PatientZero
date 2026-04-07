@@ -195,7 +195,7 @@ export function JudgePage() {
           </Select>
         </div>
       </Header>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-6 max-w-3xl mx-auto space-y-3">
           <p className="text-xs text-muted-foreground">
             {evaluatedCount} of {simulations.length} simulations evaluated
@@ -217,8 +217,6 @@ export function JudgePage() {
                         <span className="text-xs text-muted-foreground truncate">{sim.scenario_name}</span>
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{sim.style}</span>
-                        <span>·</span>
                         <span className="font-mono">{sim.model}</span>
                         {evaluation && (
                           <>

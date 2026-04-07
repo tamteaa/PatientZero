@@ -46,18 +46,24 @@ class ClaudeCLIProvider(LLMProvider):
         proc.stdin.write(prompt.encode())
         proc.stdin.close()
 
+        emitted = 0  # characters already yielded
         async for line in proc.stdout:
             line = line.decode().strip()
             if not line:
                 continue
             try:
                 event = json.loads(line)
-                # Yield text from assistant message chunks
+                # Each "assistant" event contains cumulative text — only yield the new delta
                 if event.get("type") == "assistant":
                     msg = event.get("message", {})
-                    for block in msg.get("content", []):
-                        if block.get("type") == "text":
-                            yield block["text"]
+                    full_text = "".join(
+                        block["text"]
+                        for block in msg.get("content", [])
+                        if block.get("type") == "text"
+                    )
+                    if len(full_text) > emitted:
+                        yield full_text[emitted:]
+                        emitted = len(full_text)
             except json.JSONDecodeError:
                 continue
 

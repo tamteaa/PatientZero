@@ -118,7 +118,7 @@ class StaticScenarioGenerator(ScenarioGenerator):
     def __init__(self, abnormal_ratio: float = 0.3):
         self.abnormal_ratio = abnormal_ratio
 
-    async def generate(self, n: int = 1) -> list[Scenario]:
+    def generate(self, n: int = 1) -> list[Scenario]:
         return [self._generate_one() for _ in range(n)]
 
     def _generate_one(self) -> Scenario:

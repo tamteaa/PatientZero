@@ -103,6 +103,7 @@ export function SimulationDetailPage() {
         abortRef.current = abort;
 
         const knownTurns = new Set(data.turns.map((t) => t.turn_number));
+        const maxTurns = data.max_turns ?? 8;
 
         subscribeToSimulation(simId, {
           onTurnStart: (role, turn) => {
@@ -110,6 +111,7 @@ export function SimulationDetailPage() {
             setStreamingRole(role);
             setStreamingContent('');
             setStatus('running');
+            setTextStatus(`Turn ${turn + 1}/${maxTurns} — ${role.charAt(0).toUpperCase() + role.slice(1)} is responding…`);
           },
           onToken: (token) => {
             setStreamingContent((prev) => prev + token);
@@ -123,6 +125,7 @@ export function SimulationDetailPage() {
               return '';
             });
             setStreamingRole(null);
+            setTextStatus(`Turn ${turn + 1}/${maxTurns} complete`);
           },
           onDone: () => {
             setStreamingRole(null);
@@ -237,11 +240,13 @@ export function SimulationDetailPage() {
               <span>·</span>
               <span>{detail.scenario_name}</span>
               <span>·</span>
-              <span>{detail.style}</span>
-              <span>·</span>
               <span>{detail.model}</span>
-              <span>·</span>
-              <span>{messages.length} turns</span>
+              {!isActive && (
+                <>
+                  <span>·</span>
+                  <span>{messages.length} turns</span>
+                </>
+              )}
               {detail.duration_ms != null && (
                 <>
                   <span>·</span>

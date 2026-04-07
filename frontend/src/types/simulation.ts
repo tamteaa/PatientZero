@@ -10,16 +10,16 @@ export interface Scenario {
   description: string;
 }
 
-export type Style = string;
 export type SimulationRole = 'doctor' | 'patient';
 
 export interface SimulationConfig {
-  patient_name: string;
-  doctor_name: string;
-  scenario_name: string;
-  style: string;
+  scenario_name?: string;  // omit or "random" to generate
   model: string;
   max_turns?: number;
+  patient_literacy?: string;
+  patient_anxiety?: string;
+  doctor_empathy?: string;
+  doctor_verbosity?: string;
 }
 
 export interface SimulationMessage {
@@ -44,7 +44,6 @@ export interface SimulationSummary {
   id: string;
   persona_name: string;
   scenario_name: string;
-  style: string;
   model: string;
   state: string;
   duration_ms: number | null;
@@ -78,5 +77,4 @@ export interface Evaluation {
   created_at: string;
   persona_name?: string;
   scenario_name?: string;
-  style?: string;
 }

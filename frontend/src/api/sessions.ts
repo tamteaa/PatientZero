@@ -98,6 +98,78 @@ export async function listEvaluations(): Promise<Evaluation[]> {
   return data;
 }
 
+export async function getAnalysis(): Promise<AnalysisResult> {
+  const { data } = await client.get('/analysis');
+  return data;
+}
+
+export interface MetricStats {
+  mean: number | null;
+  std: number | null;
+  n: number;
+}
+
+export interface ScoreStats {
+  comprehension_score: MetricStats;
+  factual_recall: MetricStats;
+  applied_reasoning: MetricStats;
+  explanation_quality: MetricStats;
+  interaction_quality: MetricStats;
+}
+
+export type MetricKey = keyof ScoreStats;
+
+export interface EffectSizeTriple {
+  high_vs_low: number | null;
+  high_vs_moderate: number | null;
+  moderate_vs_low: number | null;
+}
+
+export interface VerbosityEffectTriple {
+  thorough_vs_terse: number | null;
+  thorough_vs_moderate: number | null;
+  moderate_vs_terse: number | null;
+}
+
+export interface GapGroupStats {
+  rate: number;
+  n: number;
+  n_gap: number;
+}
+
+export interface GapAnalysis {
+  total_with_gap: number;
+  gap_rate: number;
+  by_literacy: Record<string, GapGroupStats>;
+  by_scenario: Record<string, GapGroupStats>;
+  by_doctor_empathy: Record<string, GapGroupStats>;
+}
+
+export interface WorstCombo {
+  patient_literacy: string;
+  doctor_empathy: string;
+  doctor_verbosity: string;
+  scenario: string;
+  mean_comprehension: number;
+  scores: ScoreStats;
+  n: number;
+}
+
+export interface AnalysisResult {
+  total_evaluations: number;
+  overall: ScoreStats;
+  by_patient_literacy: Record<string, ScoreStats>;
+  by_patient_anxiety: Record<string, ScoreStats>;
+  by_patient_age: Record<string, ScoreStats>;
+  by_doctor_empathy: Record<string, ScoreStats>;
+  by_doctor_verbosity: Record<string, ScoreStats>;
+  by_doctor_comprehension_checking: Record<string, ScoreStats>;
+  by_scenario: Record<string, ScoreStats>;
+  effect_sizes: Record<string, Record<MetricKey, EffectSizeTriple | VerbosityEffectTriple>>;
+  gap_analysis: GapAnalysis;
+  worst_combinations: WorstCombo[];
+}
+
 // ── Chat SSE ────────────────────────────────────────────────────────────────
 
 export async function sendMessage(
