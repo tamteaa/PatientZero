@@ -23,6 +23,7 @@ import {
   listSimulations,
   deleteSimulation,
 } from '@/api/sessions';
+import { useError } from '@/contexts/ErrorContext';
 import type {
   AgentProfile,
   Scenario,
@@ -37,6 +38,7 @@ const statusColor: Record<string, string> = {
 
 export function SimulationsPage() {
   const navigate = useNavigate();
+  const { handleError } = useError();
 
   const [personas, setPersonas] = useState<AgentProfile[]>([]);
   const [doctors, setDoctors] = useState<AgentProfile[]>([]);
@@ -54,15 +56,15 @@ export function SimulationsPage() {
   const [isLaunching, setIsLaunching] = useState(false);
 
   const fetchSimulations = useCallback(() => {
-    listSimulations().then(setSimulations).catch(() => {});
-  }, []);
+    listSimulations().then(setSimulations).catch((err) => handleError(err, 'Failed to load simulations'));
+  }, [handleError]);
 
   useEffect(() => {
-    listPersonas().then((p) => { setPersonas(p); if (p.length > 0 && !patientName) setPatientName(p[0].name); }).catch(() => {});
-    listDoctors().then((d) => { setDoctors(d); if (d.length > 0 && !doctorName) setDoctorName(d[0].name); }).catch(() => {});
-    listScenarios().then((s) => { setScenariosList(s); if (s.length > 0 && !scenarioName) setScenarioName(s[0].test_name); }).catch(() => {});
-    listStyles().then((s) => { setStyles(s); if (s.length > 0 && !style) setStyle(s[0]); }).catch(() => {});
-    listModels().then((m) => { setAvailableModels(m); if (m.length > 0 && !model) setModel(m[0]); }).catch(() => {});
+    listPersonas().then((p) => { setPersonas(p); if (p.length > 0 && !patientName) setPatientName(p[0].name); }).catch((err) => handleError(err, 'Failed to load personas'));
+    listDoctors().then((d) => { setDoctors(d); if (d.length > 0 && !doctorName) setDoctorName(d[0].name); }).catch((err) => handleError(err, 'Failed to load doctors'));
+    listScenarios().then((s) => { setScenariosList(s); if (s.length > 0 && !scenarioName) setScenarioName(s[0].name); }).catch((err) => handleError(err, 'Failed to load scenarios'));
+    listStyles().then((s) => { setStyles(s); if (s.length > 0 && !style) setStyle(s[0]); }).catch((err) => handleError(err, 'Failed to load styles'));
+    listModels().then((m) => { setAvailableModels(m); if (m.length > 0 && !model) setModel(m[0]); }).catch((err) => handleError(err, 'Failed to load models'));
     fetchSimulations();
   }, []);
 
@@ -83,10 +85,11 @@ export function SimulationsPage() {
     try {
       const simId = await startSimulation(config);
       navigate(`/simulations/${simId}`);
-    } catch {
+    } catch (err) {
+      handleError(err, 'Failed to start simulation');
       setIsLaunching(false);
     }
-  }, [patientName, doctorName, scenarioName, style, model, maxTurns, navigate]);
+  }, [patientName, doctorName, scenarioName, style, model, maxTurns, navigate, handleError]);
 
   const handleDelete = useCallback(async (id: string) => {
     try {
@@ -137,7 +140,7 @@ export function SimulationsPage() {
                   <SelectTrigger className="w-52 h-9 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {scenariosList.map((s) => (
-                      <SelectItem key={s.test_name} value={s.test_name}>{s.test_name}</SelectItem>
+                      <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

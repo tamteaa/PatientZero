@@ -2,13 +2,14 @@ import json
 from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from backend.api.dependencies import db, simulation_service
 from core.agents.judge import JudgeAgent
 from core.config.personas import PATIENT_PROFILES, DOCTOR_PROFILES
 from core.config.scenarios import SCENARIOS
+from core.config.settings import EXPLANATION_STYLES
 from core.db.queries.evaluations import (
     create_evaluation,
     delete_evaluation,
@@ -42,6 +43,11 @@ def get_scenarios():
     return [asdict(s) for s in SCENARIOS]
 
 
+@router.get("/styles")
+def get_styles():
+    return EXPLANATION_STYLES
+
+
 # ── Simulate ─────────────────────────────────────────────────────────────────
 
 
@@ -49,8 +55,9 @@ class SimulateRequest(BaseModel):
     patient_name: str
     doctor_name: str
     scenario_name: str
+    style: str = "clinical"
     model: str
-    max_turns: int | None = None
+    max_turns: int | None = Field(default=None, ge=1, le=50)
 
 
 def _find_profile(profiles: list[AgentProfile], name: str) -> AgentProfile | None:
@@ -85,8 +92,12 @@ async def simulate(request: SimulateRequest):
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
 
+    if request.style not in EXPLANATION_STYLES:
+        raise HTTPException(status_code=400, detail=f"Unknown style: {request.style}")
+
     sim_id = simulation_service.create_and_start(
-        doctor, patient, scenario, request.model, request.max_turns or 8,
+        doctor, patient, scenario, request.model,
+        style=request.style, max_turns=request.max_turns or 8,
     )
     return {"simulation_id": sim_id}
 

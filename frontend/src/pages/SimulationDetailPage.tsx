@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Loader2, Pause, Play, Square } from 'lucide-react';
@@ -11,6 +11,7 @@ import {
   stopSimulation,
   subscribeToSimulation,
 } from '@/api/sessions';
+import { useError } from '@/contexts/ErrorContext';
 import {
   simulationDetailAtom,
   simulationStatusAtom,
@@ -54,6 +55,7 @@ const statusColor: Record<string, string> = {
 export function SimulationDetailPage() {
   const { simId } = useParams<{ simId: string }>();
   const navigate = useNavigate();
+  const { handleError } = useError();
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -149,8 +151,10 @@ export function SimulationDetailPage() {
       await pauseSimulation(simId);
       setStatus('paused');
       setTextStatus(`Paused at turn ${messages.length + 1}`);
-    } catch {}
-  }, [simId, messages.length, setStatus, setTextStatus]);
+    } catch (err) {
+      handleError(err, 'Failed to pause simulation');
+    }
+  }, [simId, messages.length, setStatus, setTextStatus, handleError]);
 
   const handleResume = useCallback(async () => {
     if (!simId) return;
@@ -158,8 +162,10 @@ export function SimulationDetailPage() {
       await resumeSimulation(simId);
       setStatus('running');
       setTextStatus('Resuming...');
-    } catch {}
-  }, [simId, setStatus, setTextStatus]);
+    } catch (err) {
+      handleError(err, 'Failed to resume simulation');
+    }
+  }, [simId, setStatus, setTextStatus, handleError]);
 
   const handleStop = useCallback(async () => {
     if (!simId) return;
@@ -168,8 +174,10 @@ export function SimulationDetailPage() {
       setStatus('completed');
       setTextStatus(`Stopped at turn ${messages.length}`);
       fetchDetail();
-    } catch {}
-  }, [simId, messages.length, setStatus, setTextStatus, fetchDetail]);
+    } catch (err) {
+      handleError(err, 'Failed to stop simulation');
+    }
+  }, [simId, messages.length, setStatus, setTextStatus, fetchDetail, handleError]);
 
   if (!detail && status !== 'error') {
     return (

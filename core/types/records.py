@@ -30,6 +30,7 @@ class SimulationRecord:
     id: str
     persona_name: str
     scenario_name: str
+    style: str
     model: str
     state: str
     config_json: str
@@ -71,6 +72,7 @@ class EvaluationRecord:
     created_at: str
     persona_name: str | None = None
     scenario_name: str | None = None
+    style: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)

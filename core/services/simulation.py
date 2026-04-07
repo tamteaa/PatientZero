@@ -25,11 +25,12 @@ class SimulationService:
         patient_profile: AgentProfile,
         scenario: Scenario,
         model: str,
+        style: str = "clinical",
         max_turns: int = DEFAULT_MAX_TURNS,
     ) -> str:
         provider, model_name = parse_provider_model(model)
 
-        doctor_prompt = build_doctor_prompt(doctor_profile, scenario)
+        doctor_prompt = build_doctor_prompt(doctor_profile, scenario, style)
         patient_prompt = build_patient_prompt(patient_profile)
 
         doctor = SimAgent(provider, model_name, doctor_profile, doctor_prompt)
@@ -39,12 +40,14 @@ class SimulationService:
             self.db,
             persona_name=patient_profile.name,
             scenario_name=scenario.name,
+            style=style,
             model=model,
             config={
                 "doctor": asdict(doctor_profile),
                 "patient": asdict(patient_profile),
                 "scenario": asdict(scenario),
                 "model": model,
+                "style": style,
             },
         )
         sim_id = sim_record.id

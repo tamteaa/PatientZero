@@ -9,6 +9,29 @@ Name: {name}
 {traits_block}
 Backstory: {backstory}"""
 
+_STYLE_INSTRUCTIONS = {
+    "clinical": (
+        "- Use precise medical terminology, defining terms as needed\n"
+        "- Present information in a structured, factual manner\n"
+        "- Reference specific numbers, ranges, and clinical significance"
+    ),
+    "empathetic": (
+        "- Lead with emotional acknowledgment before clinical details\n"
+        "- Regularly check in on how the patient is feeling\n"
+        "- Frame information in terms of the patient's wellbeing and concerns"
+    ),
+    "analogy": (
+        "- Use everyday analogies and metaphors to explain medical concepts\n"
+        "- Compare lab values to familiar quantities or situations\n"
+        "- Build understanding through relatable comparisons before introducing technical terms"
+    ),
+    "simplified": (
+        "- Use the simplest language possible, avoiding medical jargon\n"
+        "- Break information into very small, digestible pieces\n"
+        "- Repeat key points in different ways to reinforce understanding"
+    ),
+}
+
 _DOCTOR = """\
 You are a medical professional explaining test results to a patient through conversation.
 
@@ -16,6 +39,9 @@ You are a medical professional explaining test results to a patient through conv
 
 ## Scenario
 {scenario}
+
+## Explanation Style: {style}
+{style_instructions}
 
 ## Instructions
 - Explain these test results clearly and accurately
@@ -89,10 +115,13 @@ def _format_profile(profile: AgentProfile) -> str:
     )
 
 
-def build_doctor_prompt(profile: AgentProfile, scenario: Scenario) -> str:
+def build_doctor_prompt(profile: AgentProfile, scenario: Scenario, style: str = "clinical") -> str:
+    style_instructions = _STYLE_INSTRUCTIONS.get(style, _STYLE_INSTRUCTIONS["clinical"])
     return _DOCTOR.format(
         profile=_format_profile(profile),
         scenario=scenario.description,
+        style=style.capitalize(),
+        style_instructions=style_instructions,
     )
 
 

@@ -14,8 +14,8 @@ class OpenAIProvider(LLMProvider):
             api_key=api_key,
             base_url=base_url,
             default_headers={
-                "User-Agent": "claude-code/1.0",
-                "X-Client-Name": "claude-code",
+                "User-Agent": "patientzero/1.0",
+                "X-Client-Name": "patientzero",
             },
         )
 

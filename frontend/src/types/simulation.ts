@@ -6,11 +6,8 @@ export interface AgentProfile {
 }
 
 export interface Scenario {
-  test_name: string;
-  results: string;
-  normal_range: string;
-  significance: string;
-  keywords: string[];
+  name: string;
+  description: string;
 }
 
 export type Style = string;

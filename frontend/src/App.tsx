@@ -5,8 +5,8 @@ import { AppLayout } from '@/layouts/AppLayout';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { SimulationsPage } from '@/pages/SimulationsPage';
 import { SimulationDetailPage } from '@/pages/SimulationDetailPage';
-
 import { JudgePage } from '@/pages/JudgePage';
+import { Chat } from '@/pages/Chat';
 
 
 function App() {
@@ -18,7 +18,7 @@ function App() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="simulations" element={<SimulationsPage />} />
           <Route path="simulations/:simId" element={<SimulationDetailPage />} />
-
+          <Route path="chat" element={<Chat />} />
           <Route path="judge" element={<JudgePage />} />
         </Route>
 

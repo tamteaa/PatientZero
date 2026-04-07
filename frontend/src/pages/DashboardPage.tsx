@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Play, FlaskConical } from 'lucide-react';
 import { listSimulations, listEvaluations, listPersonas, listDoctors, listScenarios, listStyles } from '@/api/sessions';
+import { useError } from '@/contexts/ErrorContext';
 import type { AgentProfile, Evaluation, Scenario, SimulationSummary } from '@/types/simulation';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -62,6 +63,7 @@ function CoverageBar({ covered, total }: { covered: number; total: number }) {
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { handleError } = useError();
   const [simulations, setSimulations] = useState<SimulationSummary[]>([]);
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [personas, setPersonas] = useState<AgentProfile[]>([]);
@@ -87,6 +89,7 @@ export function DashboardPage() {
         setScenarios(sc);
         setStyles(st);
       })
+      .catch((err) => handleError(err, 'Failed to load dashboard data'))
       .finally(() => setLoading(false));
   }, []);
 

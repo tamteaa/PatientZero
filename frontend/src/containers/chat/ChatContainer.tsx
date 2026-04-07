@@ -14,7 +14,7 @@ export function ChatContainer() {
   const activeTitle = sessions.find((s) => s.id === activeSessionId)?.title ?? '';
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex flex-1 overflow-hidden">
       <Sidebar
         sessions={sessions}
         activeSessionId={activeSessionId}

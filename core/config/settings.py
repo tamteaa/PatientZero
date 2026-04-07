@@ -11,8 +11,16 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 AVAILABLE_MODELS = [
     "mock:default",
     "kimi:kimi-k2.5",
+    "openai:gpt-4o",
     "claude:claude-sonnet-4-20250514",
     "claude:claude-opus-4-20250514",
     "claude:claude-haiku-4-5-20251001",
     "local:default",
+]
+
+EXPLANATION_STYLES = [
+    "clinical",
+    "empathetic",
+    "analogy",
+    "simplified",
 ]

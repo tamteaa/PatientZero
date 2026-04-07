@@ -16,6 +16,10 @@ def get_provider(provider_name: str) -> LLMProvider:
     match provider_name:
         case "mock":
             _providers[provider_name] = MockProvider()
+        case "openai":
+            _providers[provider_name] = OpenAIProvider(
+                api_key=os.environ["OPENAI_API_KEY"],
+            )
         case "kimi":
             _providers[provider_name] = OpenAIProvider(
                 api_key=os.environ["KIMI_API_KEY"],
@@ -23,6 +27,11 @@ def get_provider(provider_name: str) -> LLMProvider:
             )
         case "claude":
             _providers[provider_name] = ClaudeCLIProvider()
+        case "local":
+            _providers[provider_name] = OpenAIProvider(
+                api_key="local",
+                base_url=os.environ.get("LOCAL_LLM_URL", "http://localhost:11434") + "/v1",
+            )
         case _:
             raise ValueError(f"Unknown LLM provider: {provider_name}")
 

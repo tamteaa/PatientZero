@@ -18,6 +18,7 @@ import {
   evaluateSimulation,
   listEvaluations,
 } from '@/api/sessions';
+import { useError } from '@/contexts/ErrorContext';
 import type { Evaluation, SimulationSummary } from '@/types/simulation';
 
 const SCORE_FIELDS: { key: keyof Evaluation; label: string }[] = [
@@ -91,6 +92,8 @@ export function JudgePage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
+  const { handleError } = useError();
+
   const reload = useCallback(() => {
     return Promise.all([
       listSimulations(),
@@ -107,8 +110,10 @@ export function JudgePage() {
     listModels().then((ms) => {
       setModels(ms);
       if (ms.length > 0) setSelectedModel(ms[0]);
-    }).catch(() => {});
-    reload().finally(() => setLoading(false));
+    }).catch((err) => handleError(err, 'Failed to load models'));
+    reload()
+      .catch((err) => handleError(err, 'Failed to load evaluations'))
+      .finally(() => setLoading(false));
   }, [reload]);
 
   const handleEvaluate = useCallback(async (simId: string) => {
@@ -117,6 +122,8 @@ export function JudgePage() {
       const result = await evaluateSimulation(simId, selectedModel);
       setEvaluations((prev) => new Map(prev).set(simId, result));
       setExpanded((prev) => new Set(prev).add(simId));
+    } catch (err) {
+      handleError(err, 'Evaluation failed');
     } finally {
       setEvaluating((prev) => {
         const next = new Set(prev);
@@ -124,7 +131,7 @@ export function JudgePage() {
         return next;
       });
     }
-  }, [selectedModel]);
+  }, [selectedModel, handleError]);
 
   const toggleExpand = (simId: string) => {
     setExpanded((prev) => {

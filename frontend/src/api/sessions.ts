@@ -112,6 +112,11 @@ export async function sendMessage(
     body: JSON.stringify({ session_id: sessionId, message }),
   });
 
+  if (!response.ok) {
+    const text = await response.text().catch(() => 'Unknown error');
+    throw new Error(`Chat request failed (${response.status}): ${text}`);
+  }
+
   const reader = response.body?.getReader();
   if (!reader) return;
 

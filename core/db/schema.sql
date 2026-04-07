@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS simulations (
     id TEXT PRIMARY KEY,
     persona_name TEXT NOT NULL,
     scenario_name TEXT NOT NULL,
+    style TEXT NOT NULL DEFAULT 'clinical',
     model TEXT NOT NULL,
     state TEXT NOT NULL DEFAULT 'running',
     config_json TEXT NOT NULL,

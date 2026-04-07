@@ -1,7 +1,7 @@
 import json
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from backend.api.dependencies import db
@@ -28,7 +28,7 @@ class CreateSessionRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     session_id: str
-    message: str
+    message: str = Field(min_length=1, max_length=10000)
 
 
 class UpdateSessionRequest(BaseModel):
