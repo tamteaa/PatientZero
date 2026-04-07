@@ -130,6 +130,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           setIsStreaming(false);
           refreshSessions();
         },
+        (error) => {
+          setStreamingContent(null);
+          setIsStreaming(false);
+          handleError(new Error(error), 'Chat error');
+        },
       );
     } catch (e) {
       setStreamingContent(null);

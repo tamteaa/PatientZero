@@ -50,7 +50,7 @@ def get_evaluation(db: Database, simulation_id: str) -> EvaluationRecord | None:
 
 def list_evaluations(db: Database) -> list[EvaluationRecord]:
     rows = db.conn.execute(
-        """SELECT e.*, s.persona_name, s.scenario_name, s.style
+        """SELECT e.*, s.persona_name, s.scenario_name
            FROM evaluations e
            JOIN simulations s ON s.id = e.simulation_id
            ORDER BY e.created_at DESC""",

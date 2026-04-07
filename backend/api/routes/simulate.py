@@ -152,7 +152,7 @@ async def simulate(request: SimulateRequest):
     )[0]
 
     sim_id = simulation_service.create_and_start(
-        doctor, patient, scenario, request.model, request.max_turns or 8,
+        doctor, patient, scenario, request.model, max_turns=request.max_turns or 8,
     )
     return {"simulation_id": sim_id}
 

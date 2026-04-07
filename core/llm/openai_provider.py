@@ -9,13 +9,14 @@ from core.llm.base import LLMProvider
 class OpenAIProvider(LLMProvider):
     """Provider for OpenAI-compatible APIs (OpenAI, Kimi, etc.)."""
 
-    def __init__(self, api_key: str, base_url: str | None = None):
+    def __init__(self, api_key: str, base_url: str | None = None, default_headers: dict[str, str] | None = None):
         self.client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
             default_headers={
                 "User-Agent": "patientzero/1.0",
                 "X-Client-Name": "patientzero",
+                **(default_headers or {}),
             },
         )
 

@@ -177,6 +177,7 @@ export async function sendMessage(
   message: string,
   onToken: (token: string) => void,
   onDone: () => void,
+  onError?: (error: string) => void,
 ) {
   const response = await fetch(`${API_BASE}/chat`, {
     method: 'POST',
@@ -194,6 +195,7 @@ export async function sendMessage(
 
   const decoder = new TextDecoder();
   let buffer = '';
+  let currentEvent = '';
 
   while (true) {
     const { done, value } = await reader.read();
@@ -204,15 +206,25 @@ export async function sendMessage(
     buffer = lines.pop() || '';
 
     for (const line of lines) {
+      if (line.startsWith('event:')) {
+        currentEvent = line.slice(6).trim();
+        continue;
+      }
       if (line.startsWith('data:')) {
         const raw = line.slice(5).trim();
         if (!raw) continue;
         try {
           const parsed = JSON.parse(raw);
+          if (currentEvent === 'error') {
+            onError?.(parsed.error ?? 'Unknown error');
+            onDone();
+            return;
+          }
           if (parsed.token) onToken(parsed.token);
         } catch {
           // skip non-JSON data lines
         }
+        currentEvent = '';
       }
       if (line.startsWith('event: done')) {
         onDone();

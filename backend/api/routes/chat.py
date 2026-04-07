@@ -97,10 +97,13 @@ async def chat(request: ChatRequest):
 
     async def generate():
         full_response = ""
-        async for chunk in provider.stream(messages, model):
-            full_response += chunk
-            yield {"data": json.dumps({"token": chunk})}
-        create_turn(db, request.session_id, "assistant", full_response, turn_number + 1)
-        yield {"event": "done", "data": ""}
+        try:
+            async for chunk in provider.stream(messages, model):
+                full_response += chunk
+                yield {"data": json.dumps({"token": chunk})}
+            create_turn(db, request.session_id, "assistant", full_response, turn_number + 1)
+            yield {"event": "done", "data": ""}
+        except Exception as e:
+            yield {"event": "error", "data": json.dumps({"error": str(e)})}
 
     return EventSourceResponse(generate())
