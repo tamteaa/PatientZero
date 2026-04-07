@@ -18,7 +18,7 @@ def provider():
 
 
 def _make_sim(db, provider, max_turns=8):
-    rec = create_simulation(db, persona_name=PATIENT.name, scenario_name=SCENARIO.name, style="clinical", model="mock:default", config={})
+    rec = create_simulation(db, persona_name=PATIENT.name, scenario_name=SCENARIO.name, model="mock:default", config={})
     d = SimAgent(provider, "default", DOCTOR, build_doctor_prompt(DOCTOR, SCENARIO))
     p = SimAgent(provider, "default", PATIENT, build_patient_prompt(PATIENT))
     return Simulation(db, rec.id, d, p, max_turns=max_turns)
@@ -258,7 +258,7 @@ async def test_error_does_not_record_partial_output(db, provider):
             raise RuntimeError("boom")
 
     failing = FailingProvider(delay=0)
-    rec = create_simulation(db, persona_name=PATIENT.name, scenario_name=SCENARIO.name, style="clinical", model="mock:default", config={})
+    rec = create_simulation(db, persona_name=PATIENT.name, scenario_name=SCENARIO.name, model="mock:default", config={})
     d = SimAgent(failing, "default", DOCTOR, build_doctor_prompt(DOCTOR, SCENARIO))
     p = SimAgent(failing, "default", PATIENT, build_patient_prompt(PATIENT))
     sim = Simulation(db, rec.id, d, p, max_turns=2)

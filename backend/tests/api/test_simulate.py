@@ -2,10 +2,7 @@ import time
 
 
 VALID_SIM_REQUEST = {
-    "patient_name": "Maria Santos",
-    "doctor_name": "Dr. Sarah Chen",
     "scenario_name": "CBC - Elevated WBC / Low Hemoglobin",
-    "style": "clinical",
     "model": "mock:default",
     "max_turns": 4,
 }
@@ -62,16 +59,16 @@ def test_simulate_returns_id(test_client):
     assert isinstance(data["simulation_id"], str)
 
 
-def test_simulate_unknown_patient(test_client):
-    req = {**VALID_SIM_REQUEST, "patient_name": "Nobody"}
+def test_simulate_invalid_patient_literacy(test_client):
+    req = {**VALID_SIM_REQUEST, "patient_literacy": "very_low"}
     resp = test_client.post("/api/simulate", json=req)
-    assert resp.status_code == 404
+    assert resp.status_code == 400
 
 
-def test_simulate_unknown_doctor(test_client):
-    req = {**VALID_SIM_REQUEST, "doctor_name": "Dr. Nobody"}
+def test_simulate_invalid_doctor_empathy(test_client):
+    req = {**VALID_SIM_REQUEST, "doctor_empathy": "very_high"}
     resp = test_client.post("/api/simulate", json=req)
-    assert resp.status_code == 404
+    assert resp.status_code == 400
 
 
 def test_simulate_unknown_scenario(test_client):
@@ -80,8 +77,8 @@ def test_simulate_unknown_scenario(test_client):
     assert resp.status_code == 404
 
 
-def test_simulate_unknown_style(test_client):
-    req = {**VALID_SIM_REQUEST, "style": "nonexistent"}
+def test_simulate_invalid_doctor_verbosity(test_client):
+    req = {**VALID_SIM_REQUEST, "doctor_verbosity": "verbose"}
     resp = test_client.post("/api/simulate", json=req)
     assert resp.status_code == 400
 
@@ -120,9 +117,7 @@ def test_list_simulations_after_create(test_client):
     sims = resp.json()
     assert len(sims) >= 1
     sim = sims[0]
-    assert sim["persona_name"] == "Maria Santos"
     assert sim["scenario_name"] == "CBC - Elevated WBC / Low Hemoglobin"
-    assert sim["style"] == "clinical"
     assert sim["model"] == "mock:default"
 
 
