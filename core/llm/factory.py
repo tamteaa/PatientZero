@@ -25,8 +25,8 @@ def get_provider(provider_name: str) -> LLMProvider:
                 api_key=os.environ["KIMI_API_KEY"],
                 base_url="https://api.kimi.com/coding/v1",
                 default_headers={
-                    "User-Agent": os.environ.get("KIMI_USER_AGENT", "patientzero/1.0"),
-                    "X-Client-Name": os.environ.get("KIMI_CLIENT_NAME", "patientzero"),
+                    "User-Agent": os.environ.get("KIMI_USER_AGENT", "claude-code/1.0"),
+                    "X-Client-Name": os.environ.get("KIMI_CLIENT_NAME", "claude-code"),
                 },
             )
         case "claude":
