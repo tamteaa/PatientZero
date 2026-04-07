@@ -61,6 +61,7 @@ export interface SimulationDetail extends SimulationSummary {
   turns: SimulationTurn[];
   config_json: string;
   text_status?: string;
+  max_turns?: number;
 }
 
 export interface Evaluation {

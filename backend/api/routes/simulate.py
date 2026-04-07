@@ -151,7 +151,6 @@ async def simulate(request: SimulateRequest):
         verbosity=request.doctor_verbosity,
     )[0]
 
-    if request.style not in EXPLANATION_STYLES:
     sim_id = simulation_service.create_and_start(
         doctor, patient, scenario, request.model, request.max_turns or 8,
     )
