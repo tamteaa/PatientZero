@@ -19,8 +19,20 @@ CREATE TABLE IF NOT EXISTS experiments (
     name TEXT NOT NULL,
     patient_distribution_json TEXT NOT NULL,
     doctor_distribution_json TEXT NOT NULL,
+    current_optimization_target_id TEXT,
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS optimization_targets (
+    id TEXT PRIMARY KEY,
+    experiment_id TEXT NOT NULL REFERENCES experiments(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    prompts_json TEXT NOT NULL,
+    parent_id TEXT REFERENCES optimization_targets(id),
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_opt_targets_experiment ON optimization_targets(experiment_id);
 
 CREATE TABLE IF NOT EXISTS simulations (
     id TEXT PRIMARY KEY,

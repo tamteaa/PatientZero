@@ -35,16 +35,23 @@ class ExperimentRecord:
     created_at: str
     patient_distribution: PatientDistribution
     doctor_distribution: DoctorDistribution
+    current_optimization_target_id: str | None
 
     def to_summary_dict(self) -> dict:
         """Shallow representation — skips the heavy distributions."""
-        return {"id": self.id, "name": self.name, "created_at": self.created_at}
+        return {
+            "id": self.id,
+            "name": self.name,
+            "created_at": self.created_at,
+            "current_optimization_target_id": self.current_optimization_target_id,
+        }
 
     def to_dict(self) -> dict:
         return {
             "id": self.id,
             "name": self.name,
             "created_at": self.created_at,
+            "current_optimization_target_id": self.current_optimization_target_id,
             "patient_distribution": asdict(self.patient_distribution),
             "doctor_distribution": asdict(self.doctor_distribution),
         }

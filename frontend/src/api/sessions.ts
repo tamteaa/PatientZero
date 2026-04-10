@@ -7,6 +7,8 @@ import type {
   Evaluation,
   Experiment,
   ExperimentDetail,
+  OptimizationResult,
+  OptimizeRequest,
   PatientDistributionResponse,
   Scenario,
   SimulationConfig,
@@ -77,6 +79,14 @@ export async function deleteExperiment(id: string): Promise<void> {
 
 export async function getExperimentCoverage(id: string): Promise<CoverageReport> {
   const { data } = await client.get(`/experiments/${id}/coverage`);
+  return data;
+}
+
+export async function optimizeExperiment(
+  id: string,
+  request: OptimizeRequest = {},
+): Promise<OptimizationResult> {
+  const { data } = await client.post(`/experiments/${id}/optimize`, request);
   return data;
 }
 

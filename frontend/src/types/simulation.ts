@@ -27,6 +27,7 @@ export interface Experiment {
   id: string;
   name: string;
   created_at: string;
+  current_optimization_target_id: string | null;
 }
 
 export interface ExperimentDetail extends Experiment {
@@ -75,6 +76,38 @@ export interface CoverageReport {
   simulations_counted: number;
   coverage_pct: number;  // 0.0–1.0
   estimated_total_needed: number;
+}
+
+// ── Feedback / optimization ─────────────────────────────────────────────────
+
+export interface OptimizationTarget {
+  id: string;
+  experiment_id: string;
+  kind: string;
+  prompts: Record<string, string>;
+  parent_id: string | null;
+  created_at: string;
+}
+
+export interface OptimizeRequest {
+  metric_weights?: Record<string, number>;
+  seeding_mode?: 'historical_failures' | 'fresh_trials';
+  num_candidates?: number;
+  trials_per_candidate?: number;
+  worst_cases_k?: number;
+}
+
+export interface CandidateScoreSummary {
+  target_id: string;
+  mean_score: number;
+  trial_count: number;
+}
+
+export interface OptimizationResult {
+  new_target: OptimizationTarget;
+  baseline: CandidateScoreSummary;
+  candidates: CandidateScoreSummary[];
+  improvement: number;
 }
 
 export interface SimulationMessage {

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.api.dependencies import db
 from core.analysis.coverage import compute_coverage
@@ -10,6 +10,12 @@ from core.db.queries.experiments import (
     list_experiments,
 )
 from core.db.queries.simulations import list_simulations
+from core.services.feedback import FeedbackService
+from core.types import (
+    OptimizationConfig,
+    OptimizationMetric,
+    SeedingMode,
+)
 
 router = APIRouter()
 
@@ -53,3 +59,42 @@ def get_experiment_coverage(exp_id: str):
         raise HTTPException(status_code=404, detail="Experiment not found")
     sims = [s for s in list_simulations(db) if s.experiment_id == exp_id]
     return compute_coverage(sims, exp.patient_distribution, exp.doctor_distribution).to_dict()
+
+
+class OptimizeRequest(BaseModel):
+    metric_weights: dict[str, float] = Field(
+        default_factory=lambda: {"comprehension_score": 1.0},
+        description="Judge dimensions → weights to optimize against",
+    )
+    seeding_mode: str = "historical_failures"
+    num_candidates: int = Field(default=5, ge=1, le=50)
+    trials_per_candidate: int = Field(default=10, ge=1, le=100)
+    worst_cases_k: int = Field(default=5, ge=0, le=50)
+
+
+@router.post("/experiments/{exp_id}/optimize")
+def optimize_experiment(exp_id: str, request: OptimizeRequest):
+    exp = get_experiment(db, exp_id)
+    if not exp:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+
+    try:
+        seeding_mode = SeedingMode(request.seeding_mode)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown seeding_mode: {request.seeding_mode}")
+
+    config = OptimizationConfig(
+        metric=OptimizationMetric(weights=request.metric_weights),
+        seeding_mode=seeding_mode,
+        num_candidates=request.num_candidates,
+        trials_per_candidate=request.trials_per_candidate,
+        worst_cases_k=request.worst_cases_k,
+    )
+
+    service = FeedbackService(db)
+    try:
+        result = service.optimize(exp_id, config)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return result.to_dict()

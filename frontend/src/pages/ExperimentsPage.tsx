@@ -5,13 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, Sparkles, Loader2 } from 'lucide-react';
 import {
   listExperiments,
   createExperiment,
   deleteExperiment,
   getExperiment,
   getPatientDistribution,
+  optimizeExperiment,
 } from '@/api/sessions';
 import { activeExperimentIdAtom, experimentsAtom } from '@/atoms/experiment';
 import { useError } from '@/contexts/ErrorContext';
@@ -130,13 +131,19 @@ function DetailPane({
   patientDist,
   ageRanges,
   doctorDist,
+  optimizing,
+  lastOptImprovement,
   onDelete,
+  onOptimize,
 }: {
   experiment: { id: string; name: string; created_at: string };
   patientDist: PatientDistribution | null;
   ageRanges: Record<string, [number, number]>;
   doctorDist: DoctorDistribution | null;
+  optimizing: boolean;
+  lastOptImprovement: number | null;
   onDelete: () => void;
+  onOptimize: () => void;
 }) {
   return (
     <div className="flex flex-col gap-4 p-6 max-w-3xl">
@@ -146,15 +153,35 @@ function DetailPane({
           <p className="text-xs text-muted-foreground">
             Created {new Date(experiment.created_at).toLocaleString()}
           </p>
+          {lastOptImprovement != null && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+              Last optimize: {lastOptImprovement >= 0 ? '+' : ''}{lastOptImprovement.toFixed(2)} improvement
+            </p>
+          )}
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs gap-1.5 shrink-0 text-red-600 hover:text-red-700"
-          onClick={onDelete}
-        >
-          <Trash2 className="h-3.5 w-3.5" /> Delete
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="default"
+            size="sm"
+            className="h-8 text-xs gap-1.5"
+            disabled={optimizing}
+            onClick={onOptimize}
+          >
+            {optimizing ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Optimizing…</>
+            ) : (
+              <><Sparkles className="h-3.5 w-3.5" /> Optimize</>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1.5 text-red-600 hover:text-red-700"
+            onClick={onDelete}
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Delete
+          </Button>
+        </div>
       </div>
 
       <div className="border-t pt-4 space-y-1">
@@ -179,6 +206,8 @@ export function ExperimentsPage() {
   const [creating, setCreating] = useState(false);
   const [detail, setDetail] = useState<{ patient: PatientDistribution; doctor: DoctorDistribution } | null>(null);
   const [ageRanges, setAgeRanges] = useState<Record<string, [number, number]>>({});
+  const [optimizing, setOptimizing] = useState(false);
+  const [lastOptImprovement, setLastOptImprovement] = useState<number | null>(null);
   const { handleError } = useError();
 
   const reload = async () => {
@@ -204,6 +233,7 @@ export function ExperimentsPage() {
 
   // Fetch distributions for the selected experiment
   useEffect(() => {
+    setLastOptImprovement(null);
     if (!activeId) {
       setDetail(null);
       return;
@@ -226,6 +256,18 @@ export function ExperimentsPage() {
       handleError(err, 'Failed to create experiment');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleOptimize = async (id: string) => {
+    setOptimizing(true);
+    try {
+      const result = await optimizeExperiment(id);
+      setLastOptImprovement(result.improvement);
+    } catch (err) {
+      handleError(err, 'Optimization failed');
+    } finally {
+      setOptimizing(false);
     }
   };
 
@@ -302,7 +344,10 @@ export function ExperimentsPage() {
               patientDist={detail?.patient ?? null}
               ageRanges={ageRanges}
               doctorDist={detail?.doctor ?? null}
+              optimizing={optimizing}
+              lastOptImprovement={lastOptImprovement}
               onDelete={() => handleDelete(selectedExperiment.id)}
+              onOptimize={() => handleOptimize(selectedExperiment.id)}
             />
           ) : (
             <div className="flex items-center justify-center h-full p-6 text-sm text-muted-foreground">

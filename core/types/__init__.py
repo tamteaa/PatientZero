@@ -22,6 +22,17 @@ from core.types.distribution import (
     PatientDistribution,
     DoctorDistribution,
 )
+from core.types.feedback import (
+    SeedingMode,
+    OptimizationMetric,
+    OptimizationConfig,
+    OptimizationTarget,
+    FailureCase,
+    FeedbackSignal,
+    OptimizationRequest,
+    CandidateScore,
+    OptimizationResult,
+)
 
 __all__ = [
     "AgentProfile",
@@ -46,4 +57,13 @@ __all__ = [
     "ConditionalDistribution",
     "PatientDistribution",
     "DoctorDistribution",
+    "SeedingMode",
+    "OptimizationMetric",
+    "OptimizationConfig",
+    "OptimizationTarget",
+    "FailureCase",
+    "FeedbackSignal",
+    "OptimizationRequest",
+    "CandidateScore",
+    "OptimizationResult",
 ]
