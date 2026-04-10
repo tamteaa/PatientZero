@@ -2,6 +2,7 @@ import pytest
 
 from core.agents.sim_agent import SimAgent
 from core.agents.prompts import build_doctor_prompt, build_patient_prompt
+from core.db.queries.experiments import create_experiment
 from core.db.queries.simulations import create_simulation, get_simulation, get_simulation_turns
 from core.llm.mock import MockProvider
 from core.simulation import Simulation, SimulationStatus
@@ -18,7 +19,8 @@ def provider():
 
 
 def _make_sim(db, provider, max_turns=8):
-    rec = create_simulation(db, persona_name=PATIENT.name, scenario_name=SCENARIO.name, model="mock:default", config={})
+    exp = create_experiment(db, name="test-exp")
+    rec = create_simulation(db, experiment_id=exp.id, persona_name=PATIENT.name, scenario_name=SCENARIO.name, model="mock:default", config={})
     d = SimAgent(provider, "default", DOCTOR, build_doctor_prompt(DOCTOR, SCENARIO))
     p = SimAgent(provider, "default", PATIENT, build_patient_prompt(PATIENT))
     return Simulation(db, rec.id, d, p, max_turns=max_turns)
@@ -250,7 +252,7 @@ async def test_run_marks_simulation_completed(db, provider):
 
 
 @pytest.mark.asyncio
-async def test_error_does_not_record_partial_output(db, provider):
+async def test_error_does_not_record_partial_output(db, experiment, provider):
     """When an agent errors mid-stream, no partial output should be in the transcript."""
     class FailingProvider(MockProvider):
         async def stream(self, messages, model):
@@ -258,7 +260,7 @@ async def test_error_does_not_record_partial_output(db, provider):
             raise RuntimeError("boom")
 
     failing = FailingProvider(delay=0)
-    rec = create_simulation(db, persona_name=PATIENT.name, scenario_name=SCENARIO.name, model="mock:default", config={})
+    rec = create_simulation(db, experiment_id=experiment.id, persona_name=PATIENT.name, scenario_name=SCENARIO.name, model="mock:default", config={})
     d = SimAgent(failing, "default", DOCTOR, build_doctor_prompt(DOCTOR, SCENARIO))
     p = SimAgent(failing, "default", PATIENT, build_patient_prompt(PATIENT))
     sim = Simulation(db, rec.id, d, p, max_turns=2)

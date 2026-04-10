@@ -1,27 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAtomValue } from 'jotai';
 import { Header } from '@/components/common/Header';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Loader2, FlaskConical, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, FlaskConical } from 'lucide-react';
 import {
   listSimulations,
-  listModels,
   evaluateSimulation,
   listEvaluations,
 } from '@/api/sessions';
 import { useError } from '@/contexts/ErrorContext';
-import type { Evaluation, SimulationSummary } from '@/types/simulation';
+import { globalModelAtom } from '@/atoms/model';
+import type { Evaluation, JudgeScoreKey, SimulationSummary } from '@/types/simulation';
+import { meanScore } from '@/types/simulation';
 
-const SCORE_FIELDS: { key: keyof Evaluation; label: string }[] = [
+const SCORE_FIELDS: { key: JudgeScoreKey; label: string }[] = [
   { key: 'comprehension_score', label: 'Comprehension' },
   { key: 'factual_recall', label: 'Factual Recall' },
   { key: 'applied_reasoning', label: 'Applied Reasoning' },
@@ -52,33 +46,73 @@ function ScoreBar({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-function EvaluationPanel({ evaluation }: { evaluation: Evaluation }) {
+function DetailPane({
+  sim,
+  evaluation,
+  isEvaluating,
+  onEvaluate,
+}: {
+  sim: SimulationSummary;
+  evaluation: Evaluation | undefined;
+  isEvaluating: boolean;
+  onEvaluate: () => void;
+}) {
   return (
-    <div className="mt-3 space-y-2 border-t pt-3">
-      <div className="space-y-1.5">
-        {SCORE_FIELDS.map(({ key, label }) => (
-          <ScoreBar
-            key={key}
-            label={label}
-            value={evaluation[key] as number | null}
-          />
-        ))}
+    <div className="flex flex-col gap-4 p-6 max-w-2xl">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1 min-w-0">
+          <h2 className="text-lg font-semibold">{sim.persona_name}</h2>
+          <p className="text-sm text-muted-foreground">{sim.scenario_name}</p>
+          <p className="text-xs text-muted-foreground font-mono mt-1">{sim.model}</p>
+        </div>
+        <Button
+          size="sm"
+          variant={evaluation ? 'outline' : 'default'}
+          className="h-8 text-xs gap-1.5 shrink-0"
+          disabled={isEvaluating}
+          onClick={onEvaluate}
+        >
+          {isEvaluating ? (
+            <><Loader2 className="h-3 w-3 animate-spin" /> Evaluating…</>
+          ) : (
+            <><FlaskConical className="h-3 w-3" /> {evaluation ? 'Re-evaluate' : 'Evaluate'}</>
+          )}
+        </Button>
       </div>
-      {evaluation.confidence_comprehension_gap && (
-        <div className="mt-2">
-          <span className="text-xs font-medium text-muted-foreground">Confidence gap: </span>
-          <span className="text-xs">{evaluation.confidence_comprehension_gap}</span>
+
+      {evaluation && evaluation.judge_results.length > 0 ? (
+        <div className="space-y-3 border-t pt-4">
+          <div className="space-y-1.5">
+            {SCORE_FIELDS.map(({ key, label }) => (
+              <ScoreBar
+                key={key}
+                label={label}
+                value={meanScore(evaluation, key)}
+              />
+            ))}
+          </div>
+          {evaluation.judge_results[0].confidence_comprehension_gap && (
+            <div>
+              <span className="text-xs font-medium text-muted-foreground">Confidence gap: </span>
+              <span className="text-xs">{evaluation.judge_results[0].confidence_comprehension_gap}</span>
+            </div>
+          )}
+          {evaluation.judge_results[0].justification && (
+            <div>
+              <span className="text-xs font-medium text-muted-foreground">Justification: </span>
+              <span className="text-xs text-muted-foreground">{evaluation.judge_results[0].justification}</span>
+            </div>
+          )}
+          <div className="text-xs text-muted-foreground">
+            Evaluated with <span className="font-mono">{evaluation.judge_results.map((j) => j.model).join(', ')}</span>
+            {evaluation.created_at && ` · ${new Date(evaluation.created_at).toLocaleString()}`}
+          </div>
+        </div>
+      ) : (
+        <div className="border-t pt-4 text-sm text-muted-foreground">
+          Not yet evaluated. Click Evaluate to run the judge.
         </div>
       )}
-      {evaluation.justification && (
-        <div className="mt-1">
-          <span className="text-xs font-medium text-muted-foreground">Justification: </span>
-          <span className="text-xs text-muted-foreground">{evaluation.justification}</span>
-        </div>
-      )}
-      <div className="text-xs text-muted-foreground mt-1">
-        Evaluated with <span className="font-mono">{evaluation.model}</span> · {new Date(evaluation.created_at).toLocaleString()}
-      </div>
     </div>
   );
 }
@@ -86,10 +120,9 @@ function EvaluationPanel({ evaluation }: { evaluation: Evaluation }) {
 export function JudgePage() {
   const [simulations, setSimulations] = useState<SimulationSummary[]>([]);
   const [evaluations, setEvaluations] = useState<Map<string, Evaluation>>(new Map());
-  const [models, setModels] = useState<string[]>([]);
-  const [selectedModel, setSelectedModel] = useState('mock:default');
+  const selectedModel = useAtomValue(globalModelAtom);
   const [evaluating, setEvaluating] = useState<Set<string>>(new Set());
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const { handleError } = useError();
@@ -99,18 +132,16 @@ export function JudgePage() {
       listSimulations(),
       listEvaluations(),
     ]).then(([sims, evals]) => {
-      setSimulations(sims.filter((s) => s.state === 'completed'));
+      const completed = sims.filter((s) => s.state === 'completed');
+      setSimulations(completed);
       const evalMap = new Map<string, Evaluation>();
       for (const e of evals) evalMap.set(e.simulation_id, e);
       setEvaluations(evalMap);
+      setSelectedId((prev) => prev ?? completed[0]?.id ?? null);
     });
   }, []);
 
   useEffect(() => {
-    listModels().then((ms) => {
-      setModels(ms);
-      if (ms.length > 0) setSelectedModel(ms[0]);
-    }).catch((err) => handleError(err, 'Failed to load models'));
     reload()
       .catch((err) => handleError(err, 'Failed to load evaluations'))
       .finally(() => setLoading(false));
@@ -121,7 +152,6 @@ export function JudgePage() {
     try {
       const result = await evaluateSimulation(simId, selectedModel);
       setEvaluations((prev) => new Map(prev).set(simId, result));
-      setExpanded((prev) => new Set(prev).add(simId));
     } catch (err) {
       handleError(err, 'Evaluation failed');
     } finally {
@@ -133,21 +163,15 @@ export function JudgePage() {
     }
   }, [selectedModel, handleError]);
 
-  const toggleExpand = (simId: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(simId)) next.delete(simId);
-      else next.add(simId);
-      return next;
-    });
-  };
-
   const evaluatedCount = evaluations.size;
-  const avgComprehension = evaluatedCount > 0
-    ? Array.from(evaluations.values())
-        .filter((e) => e.comprehension_score != null)
-        .reduce((sum, e, _, arr) => sum + (e.comprehension_score ?? 0) / arr.length, 0)
+  const comprehensionMeans = Array.from(evaluations.values())
+    .map((e) => meanScore(e, 'comprehension_score'))
+    .filter((v): v is number => v != null);
+  const avgComprehension = comprehensionMeans.length
+    ? comprehensionMeans.reduce((a, b) => a + b, 0) / comprehensionMeans.length
     : null;
+
+  const selectedSim = simulations.find((s) => s.id === selectedId) ?? null;
 
   if (loading) {
     return (
@@ -177,93 +201,63 @@ export function JudgePage() {
   return (
     <>
       <Header title="Judge Calibration">
-        <div className="flex items-center gap-2">
-          {avgComprehension != null && (
-            <span className="text-xs text-muted-foreground">
-              avg comprehension: <span className="font-semibold tabular-nums">{avgComprehension.toFixed(0)}</span>
-            </span>
-          )}
-          <Select value={selectedModel} onValueChange={(v) => { if (v) setSelectedModel(v); }}>
-            <SelectTrigger className="h-7 w-36 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {models.map((m) => (
-                <SelectItem key={m} value={m}>{m}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {avgComprehension != null && (
+          <span className="text-xs text-muted-foreground">
+            avg comprehension: <span className="font-semibold tabular-nums">{avgComprehension.toFixed(0)}</span>
+          </span>
+        )}
       </Header>
-      <ScrollArea className="flex-1 min-h-0">
-        <div className="p-6 max-w-3xl mx-auto space-y-3">
-          <p className="text-xs text-muted-foreground">
-            {evaluatedCount} of {simulations.length} simulations evaluated
-          </p>
-
-          {simulations.map((sim) => {
-            const evaluation = evaluations.get(sim.id);
-            const isEvaluating = evaluating.has(sim.id);
-            const isExpanded = expanded.has(sim.id);
-
-            return (
-              <Card key={sim.id} size="sm">
-                <CardContent className="py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm truncate">{sim.persona_name}</span>
-                        <span className="text-muted-foreground text-xs">—</span>
-                        <span className="text-xs text-muted-foreground truncate">{sim.scenario_name}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="font-mono">{sim.model}</span>
-                        {evaluation && (
-                          <>
-                            <span>·</span>
-                            <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs px-1.5 py-0">
-                              score: {evaluation.comprehension_score ?? '—'}
-                            </Badge>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Left: list */}
+        <div className="flex flex-col w-80 border-r border-border min-h-0">
+          <div className="px-4 py-2 text-xs text-muted-foreground border-b border-border">
+            {evaluatedCount} of {simulations.length} evaluated
+          </div>
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="flex flex-col">
+              {simulations.map((sim) => {
+                const evaluation = evaluations.get(sim.id);
+                const isSelected = sim.id === selectedId;
+                return (
+                  <button
+                    key={sim.id}
+                    onClick={() => setSelectedId(sim.id)}
+                    className={`flex flex-col gap-0.5 px-4 py-3 text-left border-b border-border/50 transition-colors ${
+                      isSelected ? 'bg-muted' : 'hover:bg-muted/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-medium text-sm truncate">{sim.persona_name}</span>
                       {evaluation && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-muted-foreground"
-                          onClick={() => toggleExpand(sim.id)}
-                        >
-                          {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                        </Button>
+                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs px-1.5 py-0 shrink-0">
+                          {meanScore(evaluation, 'comprehension_score')?.toFixed(0) ?? '—'}
+                        </Badge>
                       )}
-                      <Button
-                        size="sm"
-                        variant={evaluation ? 'outline' : 'default'}
-                        className="h-7 text-xs gap-1.5"
-                        disabled={isEvaluating}
-                        onClick={() => handleEvaluate(sim.id)}
-                      >
-                        {isEvaluating ? (
-                          <><Loader2 className="h-3 w-3 animate-spin" /> Evaluating…</>
-                        ) : (
-                          <><FlaskConical className="h-3 w-3" /> {evaluation ? 'Re-evaluate' : 'Evaluate'}</>
-                        )}
-                      </Button>
                     </div>
-                  </div>
-
-                  {evaluation && isExpanded && (
-                    <EvaluationPanel evaluation={evaluation} />
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                    <span className="text-xs text-muted-foreground truncate">{sim.scenario_name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </ScrollArea>
         </div>
-      </ScrollArea>
+
+        {/* Right: detail */}
+        <ScrollArea className="flex-1 min-h-0">
+          {selectedSim ? (
+            <DetailPane
+              sim={selectedSim}
+              evaluation={evaluations.get(selectedSim.id)}
+              isEvaluating={evaluating.has(selectedSim.id)}
+              onEvaluate={() => handleEvaluate(selectedSim.id)}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full p-6 text-sm text-muted-foreground">
+              Select a simulation from the list.
+            </div>
+          )}
+        </ScrollArea>
+      </div>
     </>
   );
 }

@@ -11,9 +11,10 @@ from core.db.queries.simulations import (
 from core.types import SimulationRecord, SimulationTurnRecord
 
 
-def test_create_simulation(db):
+def test_create_simulation(db, experiment):
     sim = create_simulation(
         db,
+        experiment_id=experiment.id,
         persona_name="Maria Santos",
         scenario_name="CBC",
         model="mock:default",
@@ -21,12 +22,13 @@ def test_create_simulation(db):
     )
     assert isinstance(sim, SimulationRecord)
     assert sim.id is not None
+    assert sim.experiment_id == experiment.id
     assert sim.persona_name == "Maria Santos"
     assert sim.state == "running"
 
 
-def test_complete_simulation(db):
-    sim = create_simulation(db, "Maria", "CBC", "mock:default", {})
+def test_complete_simulation(db, experiment):
+    sim = create_simulation(db, experiment.id, "Maria", "CBC", "mock:default", {})
     complete_simulation(db, sim.id, 1234.5)
     updated = get_simulation(db, sim.id)
     assert updated.state == "completed"
@@ -34,15 +36,15 @@ def test_complete_simulation(db):
     assert updated.completed_at is not None
 
 
-def test_fail_simulation(db):
-    sim = create_simulation(db, "Maria", "CBC", "mock:default", {})
+def test_fail_simulation(db, experiment):
+    sim = create_simulation(db, experiment.id, "Maria", "CBC", "mock:default", {})
     fail_simulation(db, sim.id)
     updated = get_simulation(db, sim.id)
     assert updated.state == "error"
 
 
-def test_add_and_get_turns(db):
-    sim = create_simulation(db, "Maria", "CBC", "mock:default", {})
+def test_add_and_get_turns(db, experiment):
+    sim = create_simulation(db, experiment.id, "Maria", "CBC", "mock:default", {})
     add_simulation_turn(db, sim.id, 0, "doctor", "DoctorAgent", "Hello", 100.0)
     add_simulation_turn(db, sim.id, 1, "patient", "PatientAgent", "Hi", 200.0)
 
@@ -57,9 +59,9 @@ def test_add_and_get_turns(db):
     assert turns[1].turn_number == 1
 
 
-def test_list_simulations(db):
-    create_simulation(db, "Maria", "CBC", "mock:default", {})
-    create_simulation(db, "James", "HbA1c", "mock:default", {})
+def test_list_simulations(db, experiment):
+    create_simulation(db, experiment.id, "Maria", "CBC", "mock:default", {})
+    create_simulation(db, experiment.id, "James", "HbA1c", "mock:default", {})
     sims = list_simulations(db)
     assert len(sims) == 2
     assert sims[0].persona_name == "James"
@@ -69,8 +71,8 @@ def test_get_simulation_not_found(db):
     assert get_simulation(db, "nonexistent") is None
 
 
-def test_delete_simulation(db):
-    sim = create_simulation(db, "Maria", "CBC", "mock:default", {})
+def test_delete_simulation(db, experiment):
+    sim = create_simulation(db, experiment.id, "Maria", "CBC", "mock:default", {})
     add_simulation_turn(db, sim.id, 0, "doctor", "DoctorAgent", "Hello", 100.0)
     delete_simulation(db, sim.id)
     assert get_simulation(db, sim.id) is None

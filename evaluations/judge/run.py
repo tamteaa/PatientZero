@@ -16,6 +16,7 @@ from pathlib import Path
 
 from core.agents.judge import JudgeAgent
 from core.llm.factory import parse_provider_model
+from core.types import JudgeResult
 import evaluations.judge.cases as cases_pkg
 
 SCORE_FIELDS = [
@@ -46,47 +47,47 @@ def discover_cases() -> list[dict]:
     return cases
 
 
-def load_cached(name: str, model: str) -> dict | None:
+def load_cached(name: str, model: str) -> JudgeResult | None:
     path = OUTPUT_DIR / f"{name}.json"
     if not path.exists():
         return None
     try:
         data = json.loads(path.read_text())
         if data.get("model") == model:
-            return data.get("result")
+            payload = dict(data.get("result", {}))
+            payload.setdefault("model", model)
+            return JudgeResult.from_dict(payload)
     except (json.JSONDecodeError, KeyError):
         pass
     return None
 
 
-def save_result(name: str, model: str, result: dict) -> None:
+def save_result(name: str, model: str, result: JudgeResult) -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     path = OUTPUT_DIR / f"{name}.json"
     path.write_text(json.dumps({
         "model": model,
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "result": result,
+        "result": result.to_dict(),
     }, indent=2))
 
 
-def print_scores(result: dict, expected: dict):
+def print_scores(result: JudgeResult, expected: dict):
     for label, key in SCORE_FIELDS:
-        val = result.get(key)
+        val = getattr(result, key)
         score = f"{val}" if val is not None else "N/A"
         exp = expected.get(key)
         exp_str = f"  (expected {exp[0]}-{exp[1]})" if exp else ""
         print(f"    {label:<24} {score}{exp_str}")
 
-    gap = result.get("confidence_comprehension_gap")
-    if gap:
-        print(f"    {'Confidence Gap':<24} {gap}")
+    if result.confidence_comprehension_gap:
+        print(f"    {'Confidence Gap':<24} {result.confidence_comprehension_gap}")
 
-    justification = result.get("justification")
-    if justification:
-        print(f"    {'Justification':<24} {justification}")
+    if result.justification:
+        print(f"    {'Justification':<24} {result.justification}")
 
 
-def check_scores(result: dict, expected: dict) -> tuple[int, int]:
+def check_scores(result: JudgeResult, expected: dict) -> tuple[int, int]:
     """Check all score dimensions. Returns (passed, failed)."""
     passed = 0
     failed = 0
@@ -94,7 +95,7 @@ def check_scores(result: dict, expected: dict) -> tuple[int, int]:
         if key not in expected:
             continue
         lo, hi = expected[key]
-        val = result.get(key)
+        val = getattr(result, key)
         if val is not None and lo <= val <= hi:
             passed += 1
         elif val is not None:

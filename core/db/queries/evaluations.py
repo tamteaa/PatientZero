@@ -1,46 +1,49 @@
+import json
+
 from core.db.database import Database
-from core.types import EvaluationRecord
+from core.types import EvaluationRecord, JudgeResult
 
 
-def _eval(row) -> EvaluationRecord | None:
-    return EvaluationRecord(**dict(row)) if row else None
+def _row_to_record(row) -> EvaluationRecord | None:
+    if not row:
+        return None
+    data = dict(row)
+    judge_results = [
+        JudgeResult.from_dict(j) for j in json.loads(data["judge_results_json"])
+    ]
+    return EvaluationRecord(
+        id=data["id"],
+        simulation_id=data["simulation_id"],
+        created_at=data["created_at"],
+        judge_results=judge_results,
+    )
 
 
 def create_evaluation(
     db: Database,
     simulation_id: str,
-    model: str,
-    result: dict,
+    judge_result: JudgeResult,
 ) -> EvaluationRecord:
-    db.execute(
-        """INSERT INTO evaluations (
-            simulation_id, model,
-            comprehension_score, factual_recall, applied_reasoning,
-            explanation_quality, interaction_quality,
-            confidence_comprehension_gap, justification
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            simulation_id,
-            model,
-            result.get("comprehension_score"),
-            result.get("factual_recall"),
-            result.get("applied_reasoning"),
-            result.get("explanation_quality"),
-            result.get("interaction_quality"),
-            result.get("confidence_comprehension_gap"),
-            result.get("justification"),
-        ),
-    )
-    return _eval(
-        db.conn.execute(
-            "SELECT * FROM evaluations WHERE simulation_id = ? ORDER BY id DESC LIMIT 1",
-            (simulation_id,),
-        ).fetchone()
-    )
+    existing = get_evaluation(db, simulation_id)
+    results = existing.judge_results if existing else []
+    results.append(judge_result)
+    blob = json.dumps([j.to_dict() for j in results])
+
+    if existing:
+        db.execute(
+            "UPDATE evaluations SET judge_results_json = ? WHERE id = ?",
+            (blob, existing.id),
+        )
+    else:
+        db.execute(
+            "INSERT INTO evaluations (simulation_id, judge_results_json) VALUES (?, ?)",
+            (simulation_id, blob),
+        )
+    return get_evaluation(db, simulation_id)
 
 
 def get_evaluation(db: Database, simulation_id: str) -> EvaluationRecord | None:
-    return _eval(
+    return _row_to_record(
         db.conn.execute(
             "SELECT * FROM evaluations WHERE simulation_id = ? ORDER BY id DESC LIMIT 1",
             (simulation_id,),
@@ -50,12 +53,9 @@ def get_evaluation(db: Database, simulation_id: str) -> EvaluationRecord | None:
 
 def list_evaluations(db: Database) -> list[EvaluationRecord]:
     rows = db.conn.execute(
-        """SELECT e.*, s.persona_name, s.scenario_name
-           FROM evaluations e
-           JOIN simulations s ON s.id = e.simulation_id
-           ORDER BY e.created_at DESC""",
+        "SELECT * FROM evaluations ORDER BY created_at DESC",
     ).fetchall()
-    return [EvaluationRecord(**dict(r)) for r in rows]
+    return [r for r in (_row_to_record(row) for row in rows) if r]
 
 
 def delete_evaluation(db: Database, simulation_id: str) -> None:

@@ -14,7 +14,9 @@ This mirrors RIAS/CAHPS distributions of physician communication styles.
 import random
 from abc import ABC, abstractmethod
 
-from core.types import AgentProfile, Role
+from core.config.doctor_distribution import US_BASELINE_DOCTOR
+from core.config.patient_distribution import AGE_BUCKET_RANGES, US_ADULT_BASELINE
+from core.types import AgentProfile, DoctorDistribution, PatientDistribution, Role
 
 # ── Names by demographic group (approximate US diversity) ─────────────────────
 
@@ -39,93 +41,6 @@ _NAMES_BY_GROUP: dict[str, list[str]] = {
 
 # US Census approximate race/ethnicity distribution
 _GROUP_WEIGHTS = {"hispanic": 0.19, "black": 0.13, "white": 0.59, "asian": 0.06}
-
-# ── Age distributions (US adult population, 18+) ─────────────────────────────
-
-_AGE_BUCKETS = [
-    ("young",  18, 35, 0.28),   # 18-35
-    ("middle", 36, 55, 0.35),   # 36-55
-    ("older",  56, 75, 0.25),   # 56-75
-    ("senior", 76, 89, 0.12),   # 76+
-]
-
-# ── Education distributions by age bucket (Census ACS) ───────────────────────
-# lower education levels more prevalent in older cohorts
-
-_EDUCATION_BY_AGE: dict[str, list[tuple[str, float]]] = {
-    "young":  [("less than high school", 0.08), ("high school diploma", 0.28),
-               ("some college", 0.30), ("bachelor's degree", 0.24), ("graduate degree", 0.10)],
-    "middle": [("less than high school", 0.10), ("high school diploma", 0.28),
-               ("some college", 0.26), ("bachelor's degree", 0.24), ("graduate degree", 0.12)],
-    "older":  [("less than high school", 0.14), ("high school diploma", 0.32),
-               ("some college", 0.22), ("bachelor's degree", 0.20), ("graduate degree", 0.12)],
-    "senior": [("less than high school", 0.22), ("high school diploma", 0.38),
-               ("some college", 0.18), ("bachelor's degree", 0.14), ("graduate degree", 0.08)],
-}
-
-# ── Health literacy by education (NAAL data) ─────────────────────────────────
-# NAAL: ~36% of US adults below basic/basic, ~53% intermediate, ~12% proficient
-
-_LITERACY_BY_EDUCATION: dict[str, list[tuple[str, float]]] = {
-    "less than high school": [("low", 0.75), ("moderate", 0.22), ("high", 0.03)],
-    "high school diploma":   [("low", 0.40), ("moderate", 0.48), ("high", 0.12)],
-    "some college":          [("low", 0.20), ("moderate", 0.55), ("high", 0.25)],
-    "bachelor's degree":     [("low", 0.08), ("moderate", 0.42), ("high", 0.50)],
-    "graduate degree":       [("low", 0.03), ("moderate", 0.27), ("high", 0.70)],
-}
-
-# ── Anxiety by age bucket (NHIS health worry data) ───────────────────────────
-
-_ANXIETY_BY_AGE: dict[str, list[tuple[str, float]]] = {
-    "young":  [("low", 0.35), ("moderate", 0.45), ("high", 0.20)],
-    "middle": [("low", 0.30), ("moderate", 0.42), ("high", 0.28)],
-    "older":  [("low", 0.25), ("moderate", 0.38), ("high", 0.37)],
-    "senior": [("low", 0.20), ("moderate", 0.35), ("high", 0.45)],
-}
-
-# ── Behavioral tendency by literacy ──────────────────────────────────────────
-# Health psychology: agreement bias ↑ with low literacy; assertiveness ↑ with high literacy
-
-_TENDENCY_BY_LITERACY: dict[str, list[tuple[str, float]]] = {
-    "low":      [("agrees even when confused", 0.50), ("asks few questions", 0.30),
-                 ("defers to authority", 0.20)],
-    "moderate": [("asks clarifying questions", 0.40), ("agrees mostly but pushes back sometimes", 0.35),
-                 ("follows along but misses nuance", 0.25)],
-    "high":     [("asks direct targeted questions", 0.45), ("challenges assumptions", 0.30),
-                 ("wants data and specifics", 0.25)],
-}
-
-# ── Doctor distributions (RIAS/CAHPS calibrated) ─────────────────────────────
-
-_DOCTOR_SETTINGS = [
-    ("primary care", 0.45),
-    ("hospital medicine", 0.20),
-    ("emergency medicine", 0.15),
-    ("specialty clinic", 0.20),
-]
-
-_TIME_PRESSURE_BY_SETTING: dict[str, list[tuple[str, float]]] = {
-    "primary care":      [("low", 0.30), ("moderate", 0.50), ("high", 0.20)],
-    "hospital medicine": [("low", 0.20), ("moderate", 0.40), ("high", 0.40)],
-    "emergency medicine":[("low", 0.05), ("moderate", 0.25), ("high", 0.70)],
-    "specialty clinic":  [("low", 0.40), ("moderate", 0.45), ("high", 0.15)],
-}
-
-_VERBOSITY_BY_TIME_PRESSURE: dict[str, list[tuple[str, float]]] = {
-    "low":      [("terse", 0.10), ("moderate", 0.40), ("thorough", 0.50)],
-    "moderate": [("terse", 0.25), ("moderate", 0.55), ("thorough", 0.20)],
-    "high":     [("terse", 0.60), ("moderate", 0.35), ("thorough", 0.05)],
-}
-
-# CAHPS: empathy distribution from patient-reported measures
-_EMPATHY_DIST = [("low", 0.20), ("moderate", 0.45), ("high", 0.35)]
-
-# Comprehension checking correlates with empathy (RIAS data)
-_COMPREHENSION_CHECK_BY_EMPATHY: dict[str, list[tuple[str, float]]] = {
-    "low":      [("rarely", 0.60), ("sometimes", 0.35), ("always", 0.05)],
-    "moderate": [("rarely", 0.20), ("sometimes", 0.55), ("always", 0.25)],
-    "high":     [("rarely", 0.05), ("sometimes", 0.35), ("always", 0.60)],
-}
 
 _DOCTOR_NAMES = [
     "Dr. Sarah Chen", "Dr. Michael Torres", "Dr. Emily Park",
@@ -153,41 +68,48 @@ class ProfileGenerator(ABC):
 
 class StaticPatientGenerator(ProfileGenerator):
     """
-    Samples patient profiles from correlated demographic distributions.
+    Samples patient profiles from a PatientDistribution.
 
     Causal chain:
-        age_bucket → education → literacy → tendency
-        age_bucket → anxiety
+        age → education → literacy → tendency
+        age → anxiety
         group → name
 
-    Calibrated to NAAL (literacy), Census ACS (demographics), NHIS (anxiety).
+    Defaults to US_ADULT_BASELINE.
     """
 
-    def __init__(self, used_names: set[str] | None = None):
+    def __init__(
+        self,
+        distribution: PatientDistribution = US_ADULT_BASELINE,
+        used_names: set[str] | None = None,
+    ):
+        self.distribution = distribution
         self._used_names: set[str] = used_names or set()
 
     def generate(self, n: int = 1, literacy: str | None = None, anxiety: str | None = None) -> list[AgentProfile]:
         return [self._generate_one(literacy=literacy, anxiety=anxiety) for _ in range(n)]
 
     def _generate_one(self, literacy: str | None = None, anxiety: str | None = None) -> AgentProfile:
-        # 1. Age bucket
-        bucket_data = [(label, lo, hi, w) for label, lo, hi, w in _AGE_BUCKETS]
-        label, lo, hi, _ = random.choices(bucket_data, weights=[b[3] for b in bucket_data], k=1)[0]
+        d = self.distribution
+
+        # 1. Age bucket + concrete age
+        bucket = d.age.sample()
+        lo, hi = AGE_BUCKET_RANGES[bucket]
         age = random.randint(lo, hi)
 
         # 2. Education (conditioned on age bucket)
-        education = _weighted_choice(_EDUCATION_BY_AGE[label])
+        education = d.education_by_age.sample(bucket)
 
         # 3. Literacy — use constraint if given, else sample from education (NAAL)
         if literacy is None:
-            literacy = _weighted_choice(_LITERACY_BY_EDUCATION[education])
+            literacy = d.literacy_by_education.sample(education)
 
         # 4. Anxiety — use constraint if given, else sample from age bucket (NHIS)
         if anxiety is None:
-            anxiety = _weighted_choice(_ANXIETY_BY_AGE[label])
+            anxiety = d.anxiety_by_age.sample(bucket)
 
         # 5. Behavioral tendency (conditioned on final literacy)
-        tendency = _weighted_choice(_TENDENCY_BY_LITERACY[literacy])
+        tendency = d.tendency_by_literacy.sample(literacy)
 
         # 6. Name (from demographic group)
         group = _weighted_choice(list(_GROUP_WEIGHTS.items()))
@@ -252,16 +174,21 @@ class StaticPatientGenerator(ProfileGenerator):
 
 class StaticDoctorGenerator(ProfileGenerator):
     """
-    Samples doctor profiles from communication style distributions.
+    Samples doctor profiles from a DoctorDistribution.
 
     Causal chain:
         setting → time_pressure → verbosity
         empathy → comprehension_checking
 
-    Calibrated to RIAS (interaction coding) and CAHPS (patient-reported measures).
+    Defaults to US_BASELINE_DOCTOR.
     """
 
-    def __init__(self, used_names: set[str] | None = None):
+    def __init__(
+        self,
+        distribution: DoctorDistribution = US_BASELINE_DOCTOR,
+        used_names: set[str] | None = None,
+    ):
+        self.distribution = distribution
         self._used_names: set[str] = used_names or set()
         self._name_pool = list(_DOCTOR_NAMES)
 
@@ -269,22 +196,24 @@ class StaticDoctorGenerator(ProfileGenerator):
         return [self._generate_one(empathy=empathy, verbosity=verbosity) for _ in range(n)]
 
     def _generate_one(self, empathy: str | None = None, verbosity: str | None = None) -> AgentProfile:
+        d = self.distribution
+
         # 1. Practice setting
-        setting = _weighted_choice(_DOCTOR_SETTINGS)
+        setting = d.setting.sample()
 
         # 2. Time pressure (conditioned on setting)
-        time_pressure = _weighted_choice(_TIME_PRESSURE_BY_SETTING[setting])
+        time_pressure = d.time_pressure_by_setting.sample(setting)
 
         # 3. Verbosity — use constraint if given, else sample from time pressure
         if verbosity is None:
-            verbosity = _weighted_choice(_VERBOSITY_BY_TIME_PRESSURE[time_pressure])
+            verbosity = d.verbosity_by_time_pressure.sample(time_pressure)
 
         # 4. Empathy — use constraint if given, else sample from CAHPS distribution
         if empathy is None:
-            empathy = _weighted_choice(_EMPATHY_DIST)
+            empathy = d.empathy.sample()
 
         # 5. Comprehension checking (conditioned on final empathy — RIAS)
-        comp_check = _weighted_choice(_COMPREHENSION_CHECK_BY_EMPATHY[empathy])
+        comp_check = d.comprehension_check_by_empathy.sample(empathy)
 
         # 6. Name
         name = self._pick_name()

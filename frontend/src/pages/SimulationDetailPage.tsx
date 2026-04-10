@@ -199,36 +199,8 @@ export function SimulationDetailPage() {
         </Button>
       </div>
 
-      {/* Transcript */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-4 p-6 max-w-3xl mx-auto">
-          {messages.length === 0 && !streamingRole && !isRunning && (
-            <div className="flex flex-1 items-center justify-center py-20 text-muted-foreground">
-              {status === 'error' ? (
-                <p className="text-red-500">{textStatus || 'Error'}</p>
-              ) : (
-                <p>No messages.</p>
-              )}
-            </div>
-          )}
-
-          {messages.map((msg, i) => (
-            <MessageBubble key={i} message={msg} />
-          ))}
-
-          {streamingRole && (
-            <MessageBubble
-              message={{ role: streamingRole, content: streamingContent }}
-              isStreaming
-            />
-          )}
-
-          <div ref={scrollRef} />
-        </div>
-      </div>
-
-      {/* Bottom control bar */}
-      <div className="border-t border-border bg-muted/20 px-4 py-3">
+      {/* Control bar */}
+      <div className="border-b border-border bg-muted/20 px-4 py-3">
         <div className="flex items-center justify-between">
           {detail && (
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -275,6 +247,35 @@ export function SimulationDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Transcript */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-col gap-4 p-6 max-w-3xl mx-auto">
+          {messages.length === 0 && !streamingRole && !isRunning && (
+            <div className="flex flex-1 items-center justify-center py-20 text-muted-foreground">
+              {status === 'error' ? (
+                <p className="text-red-500">{textStatus || 'Error'}</p>
+              ) : (
+                <p>No messages.</p>
+              )}
+            </div>
+          )}
+
+          {messages.map((msg, i) => (
+            <MessageBubble key={i} message={msg} />
+          ))}
+
+          {streamingRole && (
+            <MessageBubble
+              message={{ role: streamingRole, content: streamingContent }}
+              isStreaming
+            />
+          )}
+
+          <div ref={scrollRef} />
+        </div>
+      </div>
+
     </div>
   );
 }

@@ -1,20 +1,19 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
-import { createSession, listSessions, getSession, sendMessage, listModels, updateSessionModel, deleteSession } from '@/api/sessions';
+import { useAtomValue } from 'jotai';
+import { createSession, listSessions, getSession, sendMessage, updateSessionModel, deleteSession } from '@/api/sessions';
 import { useError } from '@/contexts/ErrorContext';
+import { globalModelAtom } from '@/atoms/model';
 import type { Session, Turn } from '@/types/chat';
 
 interface ChatContextValue {
   sessions: Session[];
   activeSessionId: string | null;
-  activeModel: string;
   turns: Turn[];
   streamingContent: string | null;
   isStreaming: boolean;
-  availableModels: string[];
   selectSession: (id: string) => void;
   newChat: () => void;
   send: (message: string) => void;
-  setModel: (model: string) => void;
   removeSession: (id: string) => void;
 }
 
@@ -22,13 +21,12 @@ const ChatContext = createContext<ChatContextValue | null>(null);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const { handleError } = useError();
+  const activeModel = useAtomValue(globalModelAtom);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [activeModel, setActiveModel] = useState('mock:default');
   const [turns, setTurns] = useState<Turn[]>([]);
   const [streamingContent, setStreamingContent] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -41,17 +39,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refreshSessions();
-    listModels()
-      .then(setAvailableModels)
-      .catch((e) => handleError(e, 'Failed to load models'));
-  }, [refreshSessions, handleError]);
+  }, [refreshSessions]);
 
   const selectSession = useCallback(async (id: string) => {
     try {
       setActiveSessionId(id);
       const session = await getSession(id);
       setTurns(session.turns);
-      setActiveModel(session.model);
     } catch (e) {
       handleError(e, 'Failed to load session');
     }
@@ -62,24 +56,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const session = await createSession(activeModel);
       setActiveSessionId(session.id);
       setTurns([]);
-      setActiveModel(session.model);
       await refreshSessions();
     } catch (e) {
       handleError(e, 'Failed to create session');
     }
   }, [activeModel, refreshSessions, handleError]);
 
-  const setModel = useCallback(async (model: string) => {
-    try {
-      setActiveModel(model);
-      if (activeSessionId) {
-        await updateSessionModel(activeSessionId, model);
-        await refreshSessions();
-      }
-    } catch (e) {
-      handleError(e, 'Failed to update model');
-    }
-  }, [activeSessionId, refreshSessions, handleError]);
+  useEffect(() => {
+    if (!activeSessionId) return;
+    updateSessionModel(activeSessionId, activeModel)
+      .then(refreshSessions)
+      .catch(() => {});
+  }, [activeModel, activeSessionId, refreshSessions]);
 
   const removeSession = useCallback(async (id: string) => {
     try {
@@ -146,8 +134,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   return (
     <ChatContext.Provider
       value={{
-        sessions, activeSessionId, activeModel, turns, streamingContent,
-        isStreaming, availableModels, selectSession, newChat, send, setModel, removeSession,
+        sessions, activeSessionId, turns, streamingContent,
+        isStreaming, selectSession, newChat, send, removeSession,
       }}
     >
       {children}

@@ -1,11 +1,16 @@
 import time
 
+import pytest
 
-VALID_SIM_REQUEST = {
-    "scenario_name": "CBC - Elevated WBC / Low Hemoglobin",
-    "model": "mock:default",
-    "max_turns": 4,
-}
+
+@pytest.fixture
+def valid_sim_request(test_client, experiment):
+    return {
+        "experiment_id": experiment.id,
+        "scenario_name": "CBC - Elevated WBC / Low Hemoglobin",
+        "model": "mock:default",
+        "max_turns": 4,
+    }
 
 
 # ── Personas / Doctors / Scenarios / Styles ──────────────────────────────────
@@ -51,52 +56,64 @@ def test_get_styles(test_client):
 # ── Simulate ─────────────────────────────────────────────────────────────────
 
 
-def test_simulate_returns_id(test_client):
-    resp = test_client.post("/api/simulate", json=VALID_SIM_REQUEST)
+def test_simulate_returns_id(test_client, valid_sim_request):
+    resp = test_client.post("/api/simulate", json=valid_sim_request)
     assert resp.status_code == 200
     data = resp.json()
     assert "simulation_id" in data
     assert isinstance(data["simulation_id"], str)
 
 
-def test_simulate_invalid_patient_literacy(test_client):
-    req = {**VALID_SIM_REQUEST, "patient_literacy": "very_low"}
+def test_simulate_missing_experiment_id(test_client, valid_sim_request):
+    req = {k: v for k, v in valid_sim_request.items() if k != "experiment_id"}
     resp = test_client.post("/api/simulate", json=req)
-    assert resp.status_code == 400
+    assert resp.status_code == 422
 
 
-def test_simulate_invalid_doctor_empathy(test_client):
-    req = {**VALID_SIM_REQUEST, "doctor_empathy": "very_high"}
-    resp = test_client.post("/api/simulate", json=req)
-    assert resp.status_code == 400
-
-
-def test_simulate_unknown_scenario(test_client):
-    req = {**VALID_SIM_REQUEST, "scenario_name": "Unknown Test"}
+def test_simulate_unknown_experiment(test_client, valid_sim_request):
+    req = {**valid_sim_request, "experiment_id": "nonexistent"}
     resp = test_client.post("/api/simulate", json=req)
     assert resp.status_code == 404
 
 
-def test_simulate_invalid_doctor_verbosity(test_client):
-    req = {**VALID_SIM_REQUEST, "doctor_verbosity": "verbose"}
+def test_simulate_invalid_patient_literacy(test_client, valid_sim_request):
+    req = {**valid_sim_request, "patient_literacy": "very_low"}
     resp = test_client.post("/api/simulate", json=req)
     assert resp.status_code == 400
 
 
-def test_simulate_invalid_max_turns_zero(test_client):
-    req = {**VALID_SIM_REQUEST, "max_turns": 0}
+def test_simulate_invalid_doctor_empathy(test_client, valid_sim_request):
+    req = {**valid_sim_request, "doctor_empathy": "very_high"}
+    resp = test_client.post("/api/simulate", json=req)
+    assert resp.status_code == 400
+
+
+def test_simulate_unknown_scenario(test_client, valid_sim_request):
+    req = {**valid_sim_request, "scenario_name": "Unknown Test"}
+    resp = test_client.post("/api/simulate", json=req)
+    assert resp.status_code == 404
+
+
+def test_simulate_invalid_doctor_verbosity(test_client, valid_sim_request):
+    req = {**valid_sim_request, "doctor_verbosity": "verbose"}
+    resp = test_client.post("/api/simulate", json=req)
+    assert resp.status_code == 400
+
+
+def test_simulate_invalid_max_turns_zero(test_client, valid_sim_request):
+    req = {**valid_sim_request, "max_turns": 0}
     resp = test_client.post("/api/simulate", json=req)
     assert resp.status_code == 422
 
 
-def test_simulate_invalid_max_turns_negative(test_client):
-    req = {**VALID_SIM_REQUEST, "max_turns": -1}
+def test_simulate_invalid_max_turns_negative(test_client, valid_sim_request):
+    req = {**valid_sim_request, "max_turns": -1}
     resp = test_client.post("/api/simulate", json=req)
     assert resp.status_code == 422
 
 
-def test_simulate_invalid_max_turns_too_high(test_client):
-    req = {**VALID_SIM_REQUEST, "max_turns": 100}
+def test_simulate_invalid_max_turns_too_high(test_client, valid_sim_request):
+    req = {**valid_sim_request, "max_turns": 100}
     resp = test_client.post("/api/simulate", json=req)
     assert resp.status_code == 422
 
@@ -110,8 +127,8 @@ def test_list_simulations_empty(test_client):
     assert resp.json() == []
 
 
-def test_list_simulations_after_create(test_client):
-    test_client.post("/api/simulate", json=VALID_SIM_REQUEST)
+def test_list_simulations_after_create(test_client, valid_sim_request):
+    test_client.post("/api/simulate", json=valid_sim_request)
     resp = test_client.get("/api/simulations")
     assert resp.status_code == 200
     sims = resp.json()
@@ -121,8 +138,8 @@ def test_list_simulations_after_create(test_client):
     assert sim["model"] == "mock:default"
 
 
-def test_get_simulation_detail(test_client):
-    create_resp = test_client.post("/api/simulate", json=VALID_SIM_REQUEST)
+def test_get_simulation_detail(test_client, valid_sim_request):
+    create_resp = test_client.post("/api/simulate", json=valid_sim_request)
     sim_id = create_resp.json()["simulation_id"]
     time.sleep(0.5)
 
@@ -138,8 +155,8 @@ def test_get_simulation_not_found(test_client):
     assert resp.status_code == 404
 
 
-def test_delete_simulation(test_client):
-    create_resp = test_client.post("/api/simulate", json=VALID_SIM_REQUEST)
+def test_delete_simulation(test_client, valid_sim_request):
+    create_resp = test_client.post("/api/simulate", json=valid_sim_request)
     sim_id = create_resp.json()["simulation_id"]
     time.sleep(0.3)
 
@@ -172,8 +189,8 @@ def test_list_evaluations_empty(test_client):
     assert resp.json() == []
 
 
-def test_evaluate_requires_completed(test_client):
-    create_resp = test_client.post("/api/simulate", json=VALID_SIM_REQUEST)
+def test_evaluate_requires_completed(test_client, valid_sim_request):
+    create_resp = test_client.post("/api/simulate", json=valid_sim_request)
     sim_id = create_resp.json()["simulation_id"]
 
     resp = test_client.post(f"/api/simulations/{sim_id}/evaluate", json={"model": "mock:default"})

@@ -6,12 +6,21 @@ from core.types.transcript import Transcript
 from core.types.events import TurnStartEvent, TurnEndEvent
 from core.types.trace import AgentStep, AgentTrace
 from core.types.simulation import SimulationStatus
+from core.types.judge_result import JudgeResult
 from core.types.records import (
     SessionRecord,
     TurnRecord,
+    ExperimentRecord,
     SimulationRecord,
     SimulationTurnRecord,
     EvaluationRecord,
+)
+from core.types.settings import AppSettings
+from core.types.distribution import (
+    Distribution,
+    ConditionalDistribution,
+    PatientDistribution,
+    DoctorDistribution,
 )
 
 __all__ = [
@@ -27,7 +36,14 @@ __all__ = [
     "SimulationStatus",
     "SessionRecord",
     "TurnRecord",
+    "ExperimentRecord",
     "SimulationRecord",
     "SimulationTurnRecord",
     "EvaluationRecord",
+    "JudgeResult",
+    "AppSettings",
+    "Distribution",
+    "ConditionalDistribution",
+    "PatientDistribution",
+    "DoctorDistribution",
 ]

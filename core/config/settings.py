@@ -1,7 +1,11 @@
 import os
 from dotenv import load_dotenv
 
+from core.types.settings import AppSettings
+
 load_dotenv()
+
+APP_SETTINGS = AppSettings()
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock")
 DB_PATH = os.getenv("DB_PATH", "patientzero.db")

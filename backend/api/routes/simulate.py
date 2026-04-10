@@ -9,7 +9,7 @@ from backend.api.dependencies import db, simulation_service
 from core.agents.judge import JudgeAgent
 from core.config.personas import PATIENT_PROFILES, DOCTOR_PROFILES
 from core.config.scenarios import SCENARIOS
-from core.config.settings import AVAILABLE_MODELS, EXPLANATION_STYLES
+from core.config.settings import APP_SETTINGS, AVAILABLE_MODELS, EXPLANATION_STYLES
 from core.generators.profile import StaticPatientGenerator, StaticDoctorGenerator
 from core.generators.static import StaticScenarioGenerator
 from core.db.queries.evaluations import (
@@ -18,6 +18,7 @@ from core.db.queries.evaluations import (
     get_evaluation,
     list_evaluations,
 )
+from core.db.queries.experiments import get_experiment
 from core.db.queries.simulations import (
     delete_simulation,
     get_simulation,
@@ -88,6 +89,7 @@ def generate_scenarios(n: int = 5, abnormal_ratio: float = 0.3):
 
 
 class SimulateRequest(BaseModel):
+    experiment_id: str
     model: str
     max_turns: int | None = Field(default=None, ge=1, le=50)
     # None or "random" → generate from StaticScenarioGenerator
@@ -123,6 +125,11 @@ def _sse_event(event_type: str, data) -> dict | None:
 
 @router.post("/simulate")
 async def simulate(request: SimulateRequest):
+    # Validate experiment exists and load its frozen distributions
+    experiment = get_experiment(db, request.experiment_id)
+    if not experiment:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+
     # Validate trait constraints
     if request.patient_literacy and request.patient_literacy not in _VALID_LITERACY:
         raise HTTPException(status_code=400, detail=f"patient_literacy must be one of {_VALID_LITERACY}")
@@ -140,19 +147,25 @@ async def simulate(request: SimulateRequest):
         if not scenario:
             raise HTTPException(status_code=404, detail="Scenario not found")
 
-    patient = StaticPatientGenerator().generate(
+    patient = StaticPatientGenerator(distribution=experiment.patient_distribution).generate(
         n=1,
         literacy=request.patient_literacy,
         anxiety=request.patient_anxiety,
     )[0]
-    doctor = StaticDoctorGenerator().generate(
+    doctor = StaticDoctorGenerator(distribution=experiment.doctor_distribution).generate(
         n=1,
         empathy=request.doctor_empathy,
         verbosity=request.doctor_verbosity,
     )[0]
 
+    if len(simulation_service._active) >= APP_SETTINGS.max_concurrent_simulations:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Max concurrent simulations reached ({APP_SETTINGS.max_concurrent_simulations})",
+        )
+
     sim_id = simulation_service.create_and_start(
-        doctor, patient, scenario, request.model, max_turns=request.max_turns or 8,
+        request.experiment_id, doctor, patient, scenario, request.model, max_turns=request.max_turns or 8,
     )
     return {"simulation_id": sim_id}
 
@@ -265,10 +278,11 @@ async def evaluate_simulation(sim_id: str, request: EvaluateRequest):
 
     provider, model = parse_provider_model(request.model)
     judge = JudgeAgent(provider, model)
-    result = await judge.evaluate(transcript)
+    judge_result = await judge.evaluate(transcript)
+    judge_result.model = request.model
 
     delete_evaluation(db, sim_id)
-    evaluation = create_evaluation(db, sim_id, request.model, result)
+    evaluation = create_evaluation(db, sim_id, judge_result)
     return evaluation.to_dict()
 
 

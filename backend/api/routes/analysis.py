@@ -99,13 +99,15 @@ def _age_bucket(age_str: str | None) -> str | None:
 # ── Query ─────────────────────────────────────────────────────────────────────
 
 def _fetch_rows() -> list[dict]:
-    """Fetch evaluations joined with simulation config."""
+    """Fetch evaluations joined with simulation config.
+
+    Each row surfaces per-metric means across all JudgeResults on the evaluation,
+    so downstream grouping/stats code can stay metric-key-driven.
+    """
     raw = db.conn.execute(
         """
         SELECT
-            e.comprehension_score, e.factual_recall, e.applied_reasoning,
-            e.explanation_quality, e.interaction_quality,
-            e.confidence_comprehension_gap,
+            e.judge_results_json,
             s.persona_name, s.scenario_name, s.config_json
         FROM evaluations e
         JOIN simulations s ON s.id = e.simulation_id
@@ -117,6 +119,12 @@ def _fetch_rows() -> list[dict]:
     rows = []
     for r in raw:
         row = dict(r)
+        judge_results = json.loads(row.pop("judge_results_json", "[]") or "[]")
+        for metric in METRICS:
+            vals = [j.get(metric) for j in judge_results if j.get(metric) is not None]
+            row[metric] = sum(vals) / len(vals) if vals else None
+        gaps = [j.get("confidence_comprehension_gap") for j in judge_results if j.get("confidence_comprehension_gap")]
+        row["confidence_comprehension_gap"] = gaps[0] if gaps else None
         try:
             cfg = json.loads(row.pop("config_json", "{}"))
             patient = cfg.get("patient", {})

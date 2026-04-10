@@ -15,6 +15,7 @@ def _turn(row) -> SimulationTurnRecord:
 
 def create_simulation(
     db: Database,
+    experiment_id: str,
     persona_name: str,
     scenario_name: str,
     model: str,
@@ -22,9 +23,9 @@ def create_simulation(
 ) -> SimulationRecord:
     sim_id = str(uuid.uuid4())
     db.execute(
-        """INSERT INTO simulations (id, persona_name, scenario_name, model, config_json)
-           VALUES (?, ?, ?, ?, ?)""",
-        (sim_id, persona_name, scenario_name, model, json.dumps(config)),
+        """INSERT INTO simulations (id, experiment_id, persona_name, scenario_name, model, config_json)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (sim_id, experiment_id, persona_name, scenario_name, model, json.dumps(config)),
     )
     return _sim(db.conn.execute("SELECT * FROM simulations WHERE id = ?", (sim_id,)).fetchone())
 

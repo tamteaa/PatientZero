@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAtomValue } from 'jotai';
 import { useError } from '@/contexts/ErrorContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,11 +17,12 @@ import {
 import { Play, Loader2, Trash2, Shuffle } from 'lucide-react';
 import {
   startSimulation,
-  listModels,
   listScenarios,
   listSimulations,
   deleteSimulation,
 } from '@/api/sessions';
+import { globalModelAtom } from '@/atoms/model';
+import { activeExperimentIdAtom } from '@/atoms/experiment';
 import type { Scenario, SimulationSummary } from '@/types/simulation';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -69,11 +71,11 @@ export function SimulationsPage() {
   const { handleError } = useError();
 
   const [scenariosList, setScenariosList] = useState<Scenario[]>([]);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [simulations, setSimulations] = useState<SimulationSummary[]>([]);
+  const model = useAtomValue(globalModelAtom);
+  const activeExperimentId = useAtomValue(activeExperimentIdAtom);
 
   const [scenarioName, setScenarioName] = useState('random');
-  const [model, setModel] = useState('');
   const [maxTurns, setMaxTurns] = useState('');
   const [patientLiteracy, setPatientLiteracy] = useState(ANY);
   const [patientAnxiety, setPatientAnxiety] = useState(ANY);
@@ -87,19 +89,16 @@ export function SimulationsPage() {
 
   useEffect(() => {
     listScenarios().then(setScenariosList).catch(() => {});
-    listModels().then((m) => {
-      setAvailableModels(m);
-      if (m.length > 0) setModel(m[0]);
-    }).catch(() => {});
     fetchSimulations();
   }, []);
 
   const handleRun = useCallback(async () => {
-    if (!scenarioName || !model) return;
+    if (!scenarioName || !model || !activeExperimentId) return;
     const parsedMaxTurns = maxTurns ? parseInt(maxTurns, 10) : undefined;
     setIsLaunching(true);
     try {
       const simId = await startSimulation({
+        experiment_id: activeExperimentId,
         ...(scenarioName !== 'random' ? { scenario_name: scenarioName } : {}),
         model,
         ...(parsedMaxTurns && !isNaN(parsedMaxTurns) ? { max_turns: parsedMaxTurns } : {}),
@@ -113,7 +112,7 @@ export function SimulationsPage() {
       handleError(err, 'Failed to start simulation');
       setIsLaunching(false);
     }
-  }, [scenarioName, model, maxTurns, patientLiteracy, patientAnxiety, doctorEmpathy, doctorVerbosity, navigate, handleError]);
+  }, [scenarioName, model, activeExperimentId, maxTurns, patientLiteracy, patientAnxiety, doctorEmpathy, doctorVerbosity, navigate, handleError]);
 
   const handleDelete = useCallback(async (id: string) => {
     try {
@@ -124,7 +123,7 @@ export function SimulationsPage() {
     }
   }, [fetchSimulations]);
 
-  const canRun = !!model && !isLaunching;
+  const canRun = !!model && !!activeExperimentId && !isLaunching;
 
   return (
     <ScrollArea className="flex-1 min-h-0">
@@ -134,6 +133,12 @@ export function SimulationsPage() {
         <Card>
           <CardContent className="pt-5 pb-4 space-y-4">
             <h3 className="text-sm font-semibold">New Simulation</h3>
+
+            {!activeExperimentId && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                No active experiment. <button type="button" className="underline" onClick={() => navigate('/experiments')}>Create one first →</button>
+              </p>
+            )}
 
             {/* Scenario + model + max turns */}
             <div className="flex items-end gap-3 flex-wrap">
@@ -149,18 +154,6 @@ export function SimulationsPage() {
                     </SelectItem>
                     {scenariosList.map((s) => (
                       <SelectItem key={s.name} value={s.name}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-muted-foreground">Model</label>
-                <Select value={model} onValueChange={(v) => { if (v) setModel(v); }}>
-                  <SelectTrigger className="w-44 h-9 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {availableModels.map((m) => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

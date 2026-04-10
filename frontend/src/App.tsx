@@ -8,6 +8,8 @@ import { SimulationDetailPage } from '@/pages/SimulationDetailPage';
 import { JudgePage } from '@/pages/JudgePage';
 import { Chat } from '@/pages/Chat';
 import { AnalysisPage } from '@/pages/AnalysisPage';
+import { SettingsPage } from '@/pages/SettingsPage';
+import { ExperimentsPage } from '@/pages/ExperimentsPage';
 
 
 function App() {
@@ -22,6 +24,8 @@ function App() {
           <Route path="chat" element={<Chat />} />
           <Route path="judge" element={<JudgePage />} />
           <Route path="analysis" element={<AnalysisPage />} />
+          <Route path="experiments" element={<ExperimentsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

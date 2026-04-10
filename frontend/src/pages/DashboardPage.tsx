@@ -1,14 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAtomValue } from 'jotai';
 import { useError } from '@/contexts/ErrorContext';
 import { Header } from '@/components/common/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Play, FlaskConical } from 'lucide-react';
-import { listSimulations, listEvaluations } from '@/api/sessions';
-import type { Evaluation, SimulationSummary } from '@/types/simulation';
+import { Play, Loader2, FlaskConical } from 'lucide-react';
+import { listSimulations, listEvaluations, startSimulation, getExperimentCoverage, evaluateSimulation } from '@/api/sessions';
+import { activeExperimentIdAtom, experimentsAtom } from '@/atoms/experiment';
+import { globalModelAtom } from '@/atoms/model';
+import type { CoverageReport, Evaluation, SimulationSummary } from '@/types/simulation';
+import { meanScore } from '@/types/simulation';
 
 const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
@@ -17,7 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 
-function StatCard({
+function Stat({
   label,
   value,
   sub,
@@ -29,13 +33,16 @@ function StatCard({
   onClick?: () => void;
 }) {
   return (
-    <Card className={onClick ? 'cursor-pointer hover:bg-muted/40 transition-colors' : ''} onClick={onClick}>
-      <CardContent className="pt-3 pb-3">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-2xl font-semibold tabular-nums mt-0.5">{value}</p>
-        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
-      </CardContent>
-    </Card>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`flex flex-col text-left rounded-md p-3 ${onClick ? 'cursor-pointer hover:bg-muted/40 transition-colors' : ''}`}
+    >
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-2xl font-semibold tabular-nums mt-0.5">{value}</p>
+      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    </button>
   );
 }
 
@@ -43,9 +50,28 @@ function StatCard({
 export function DashboardPage() {
   const navigate = useNavigate();
   const { handleError } = useError();
-  const [simulations, setSimulations] = useState<SimulationSummary[]>([]);
-  const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
+  const activeExperimentId = useAtomValue(activeExperimentIdAtom);
+  const experiments = useAtomValue(experimentsAtom);
+  const model = useAtomValue(globalModelAtom);
+  const [allSimulations, setAllSimulations] = useState<SimulationSummary[]>([]);
+  const [allEvaluations, setAllEvaluations] = useState<Evaluation[]>([]);
+  const [coverage, setCoverage] = useState<CoverageReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [launching, setLaunching] = useState(false);
+  const [evaluating, setEvaluating] = useState<Set<string>>(new Set());
+
+  const refreshSimulations = useCallback(async () => {
+    try {
+      const sims = await listSimulations();
+      setAllSimulations(sims);
+      if (activeExperimentId) {
+        const cov = await getExperimentCoverage(activeExperimentId);
+        setCoverage(cov);
+      }
+    } catch (err) {
+      handleError(err, 'Failed to reload simulations');
+    }
+  }, [handleError, activeExperimentId]);
 
   useEffect(() => {
     Promise.all([
@@ -53,29 +79,90 @@ export function DashboardPage() {
       listEvaluations(),
     ])
       .then(([sims, evals]) => {
-        setSimulations(sims);
-        setEvaluations(evals);
+        setAllSimulations(sims);
+        setAllEvaluations(evals);
       })
       .catch((err) => handleError(err, 'Failed to load dashboard data'))
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!activeExperimentId) {
+      setCoverage(null);
+      return;
+    }
+    getExperimentCoverage(activeExperimentId)
+      .then(setCoverage)
+      .catch(() => setCoverage(null));
+  }, [activeExperimentId]);
+
+  const handleEvaluate = useCallback(async (simId: string) => {
+    if (!model) return;
+    setEvaluating((prev) => new Set(prev).add(simId));
+    try {
+      const result = await evaluateSimulation(simId, model);
+      setAllEvaluations((prev) => {
+        const filtered = prev.filter((e) => e.simulation_id !== simId);
+        return [result, ...filtered];
+      });
+    } catch (err) {
+      handleError(err, 'Evaluation failed');
+    } finally {
+      setEvaluating((prev) => {
+        const next = new Set(prev);
+        next.delete(simId);
+        return next;
+      });
+    }
+  }, [model, handleError]);
+
+  const handleRun = useCallback(async () => {
+    if (!activeExperimentId || !model || launching) return;
+    setLaunching(true);
+    try {
+      await startSimulation({ experiment_id: activeExperimentId, model });
+      await refreshSimulations();
+    } catch (err) {
+      handleError(err, 'Failed to start simulation');
+    } finally {
+      setLaunching(false);
+    }
+  }, [activeExperimentId, model, launching, refreshSimulations, handleError]);
+
+  const activeExperiment = experiments.find((e) => e.id === activeExperimentId) ?? null;
+
+  // Scope everything to the active experiment
+  const simulations = useMemo(
+    () => allSimulations.filter((s) => s.experiment_id === activeExperimentId),
+    [allSimulations, activeExperimentId]
+  );
+
+  const simIds = useMemo(() => new Set(simulations.map((s) => s.id)), [simulations]);
+
+  const evaluations = useMemo(
+    () => allEvaluations.filter((e) => simIds.has(e.simulation_id)),
+    [allEvaluations, simIds]
+  );
+
   const completed = simulations.filter((s) => s.state === 'completed');
 
-  // Unique (patient, scenario) combinations run so far
-  const uniqueCombinations = new Set(
-    simulations.map((s) => `${s.persona_name}|${s.scenario_name}`)
-  );
-  const coverageCount = uniqueCombinations.size;
-
-  // Avg comprehension across all evaluations
-  const scoredEvals = evaluations.filter((e) => e.comprehension_score != null);
-  const avgComprehension = scoredEvals.length > 0
-    ? scoredEvals.reduce((sum, e) => sum + (e.comprehension_score ?? 0), 0) / scoredEvals.length
+  const evalMeans = evaluations
+    .map((e) => meanScore(e, 'comprehension_score'))
+    .filter((v): v is number => v != null);
+  const avgComprehension = evalMeans.length > 0
+    ? evalMeans.reduce((a, b) => a + b, 0) / evalMeans.length
     : null;
 
-  // Recent simulations (last 5)
-  const recent = simulations.slice(0, 5);
+  const evaluatedSimIds = useMemo(() => new Set(evaluations.map((e) => e.simulation_id)), [evaluations]);
+
+  const recentSims = simulations.slice(0, 10);
+  const recentEvals = useMemo(() => {
+    const simById = new Map(simulations.map((s) => [s.id, s]));
+    return evaluations
+      .filter((e) => simById.has(e.simulation_id))
+      .slice(0, 10)
+      .map((e) => ({ evaluation: e, sim: simById.get(e.simulation_id)! }));
+  }, [evaluations, simulations]);
 
   if (loading) {
     return (
@@ -86,121 +173,242 @@ export function DashboardPage() {
     );
   }
 
+  if (!activeExperiment) {
+    return (
+      <>
+        <Header title="Dashboard" />
+        <div className="flex flex-1 items-center justify-center text-muted-foreground">
+          <div className="text-center space-y-2">
+            <p className="text-sm font-medium">No active experiment</p>
+            <p className="text-xs">Create or select one to see its dashboard.</p>
+            <Button size="sm" className="mt-2" onClick={() => navigate('/experiments')}>
+              Go to Experiments
+            </Button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
-      <Header title="Dashboard" />
+      <Header title="Dashboard">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>experiment:</span>
+          <button
+            className="font-medium text-foreground hover:underline"
+            onClick={() => navigate('/experiments')}
+          >
+            {activeExperiment.name}
+          </button>
+        </div>
+      </Header>
       <ScrollArea className="flex-1">
-        <div className="p-6 max-w-4xl mx-auto space-y-6">
-
-          {/* Quick actions */}
-          <div className="flex gap-2">
-            <Button size="sm" className="gap-1.5" onClick={() => navigate('/simulations')}>
-              <Play className="h-3.5 w-3.5" /> Run Simulation
-            </Button>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate('/judge')}>
-              <FlaskConical className="h-3.5 w-3.5" /> Judge
-            </Button>
-          </div>
-
-          {/* Summary stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard
-              label="Total runs"
-              value={simulations.length}
-              sub={`${completed.length} completed`}
-              onClick={() => navigate('/simulations')}
-            />
-            <StatCard
-              label="Unique runs"
-              value={coverageCount}
-              sub="patient × scenario pairs"
-            />
-            <StatCard
-              label="Evaluated"
-              value={evaluations.length}
-              sub={`of ${completed.length} completed`}
-              onClick={() => navigate('/judge')}
-            />
-            <StatCard
-              label="Avg comprehension"
-              value={avgComprehension != null ? avgComprehension.toFixed(0) : '—'}
-              sub={scoredEvals.length > 0 ? `from ${scoredEvals.length} eval${scoredEvals.length > 1 ? 's' : ''}` : 'no evals yet'}
-            />
-          </div>
-
-          {/* Experiment coverage */}
+        <div className="p-6 max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* ── Left column: single overview panel ──────────────────────── */}
           <Card>
-            <CardHeader><CardTitle>Experiment coverage</CardTitle></CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>Unique patients</span>
-                  <span className="tabular-nums font-medium text-foreground">
-                    {new Set(simulations.map((s) => s.persona_name)).size}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Scenarios covered</span>
-                  <span className="tabular-nums font-medium text-foreground">
-                    {new Set(simulations.map((s) => s.scenario_name)).size}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Completion rate</span>
-                  <span className="tabular-nums font-medium text-foreground">
-                    {simulations.length > 0
-                      ? `${Math.round((completed.length / simulations.length) * 100)}%`
-                      : '—'}
-                  </span>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Overview</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-2">
+                <Stat
+                  label="Simulations"
+                  value={simulations.length}
+                  sub={`${completed.length} completed`}
+                  onClick={() => navigate('/simulations')}
+                />
+                <Stat
+                  label="Evaluated"
+                  value={evaluations.length}
+                  sub={`of ${completed.length} completed`}
+                  onClick={() => navigate('/judge')}
+                />
+                <Stat
+                  label="Avg comprehension"
+                  value={avgComprehension != null ? avgComprehension.toFixed(0) : '—'}
+                  sub={evalMeans.length > 0 ? `from ${evalMeans.length} eval${evalMeans.length > 1 ? 's' : ''}` : 'no evals yet'}
+                />
+                <Stat
+                  label="Completion rate"
+                  value={simulations.length > 0 ? `${Math.round((completed.length / simulations.length) * 100)}%` : '—'}
+                  sub={`${simulations.length - completed.length} not completed`}
+                />
+              </div>
+
+              {/* Coverage */}
+              <div className="border-t border-border pt-4 space-y-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Coverage in this experiment
+                </h3>
+                {coverage && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Distribution coverage</span>
+                      <span className="tabular-nums font-medium text-foreground">
+                        {(coverage.coverage_pct * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-muted rounded overflow-hidden">
+                      <div
+                        className="h-full bg-primary/70 transition-all"
+                        style={{ width: `${Math.min(100, coverage.coverage_pct * 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {coverage.cells_hit} of {coverage.cells_total} cells hit ·{' '}
+                      <span className="tabular-nums">
+                        {coverage.simulations_counted} / {coverage.estimated_total_needed}
+                      </span>{' '}
+                      simulations toward full coverage
+                    </p>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-muted-foreground">
+                  <div className="flex justify-between">
+                    <span>Distinct scenarios</span>
+                    <span className="tabular-nums font-medium text-foreground">
+                      {new Set(simulations.map((s) => s.scenario_name)).size}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Distinct patients</span>
+                    <span className="tabular-nums font-medium text-foreground">
+                      {new Set(simulations.map((s) => s.persona_name)).size}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Distinct models</span>
+                    <span className="tabular-nums font-medium text-foreground">
+                      {new Set(simulations.map((s) => s.model)).size}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Errored runs</span>
+                    <span className="tabular-nums font-medium text-foreground">
+                      {simulations.filter((s) => s.state === 'error').length}
+                    </span>
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
-
-
-          {/* Recent simulations */}
-          {recent.length > 0 && (
+          {/* ── Right column: run + lists ───────────────────────────────── */}
+          <div className="space-y-4">
+            {/* Run next simulation */}
             <Card>
-              <CardHeader><CardTitle>Recent simulations</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                {recent.map((sim) => (
-                  <div
-                    key={sim.id}
-                    className="flex items-center justify-between cursor-pointer hover:bg-muted/40 rounded-lg px-2 py-1.5 transition-colors"
-                    onClick={() => navigate(`/simulations/${sim.id}`)}
-                  >
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium truncate">{sim.persona_name}</span>
-                        <span className="text-xs text-muted-foreground truncate">{sim.scenario_name}</span>
+              <CardContent className="py-4 flex items-center justify-between">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium">Run next simulation</span>
+                  <span className="text-xs text-muted-foreground">
+                    Samples from this experiment's target distribution using <span className="font-mono">{model}</span>.
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  className="gap-1.5 h-9"
+                  disabled={launching || !model}
+                  onClick={handleRun}
+                >
+                  {launching ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Running…</>
+                  ) : (
+                    <><Play className="h-3.5 w-3.5" /> Run</>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Simulations</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1.5">
+                {recentSims.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">No simulations yet.</p>
+                ) : (
+                  recentSims.map((sim) => {
+                    const isEvaluating = evaluating.has(sim.id);
+                    const hasEval = evaluatedSimIds.has(sim.id);
+                    const canEval = sim.state === 'completed';
+                    return (
+                      <div
+                        key={sim.id}
+                        className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/40 transition-colors"
+                      >
+                        <button
+                          className="flex flex-col gap-0.5 min-w-0 text-left flex-1"
+                          onClick={() => navigate(`/simulations/${sim.id}`)}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-sm font-medium truncate">{sim.persona_name}</span>
+                            <Badge className={`${STATUS_COLORS[sim.state] ?? ''} text-xs px-1.5 py-0 shrink-0`}>
+                              {sim.state}
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-muted-foreground truncate">{sim.scenario_name}</span>
+                        </button>
+                        <Button
+                          size="sm"
+                          variant={hasEval ? 'outline' : 'default'}
+                          className="h-7 text-xs gap-1 shrink-0"
+                          disabled={!canEval || isEvaluating || !model}
+                          onClick={() => handleEvaluate(sim.id)}
+                        >
+                          {isEvaluating ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <><FlaskConical className="h-3 w-3" /> {hasEval ? 'Re-eval' : 'Evaluate'}</>
+                          )}
+                        </Button>
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{new Date(sim.created_at).toLocaleString()}</span>
-                      </div>
-                    </div>
-                    <Badge className={STATUS_COLORS[sim.state] ?? ''}>{sim.state}</Badge>
-                  </div>
-                ))}
-                {simulations.length > 5 && (
+                    );
+                  })
+                )}
+                {simulations.length > 10 && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="w-full text-xs text-muted-foreground mt-1"
                     onClick={() => navigate('/simulations')}
                   >
-                    View all {simulations.length} simulations
+                    View all {simulations.length}
                   </Button>
                 )}
               </CardContent>
             </Card>
-          )}
 
-          {simulations.length === 0 && (
-            <div className="text-center py-12 text-muted-foreground">
-              <p className="text-sm font-medium">No simulations yet</p>
-              <p className="text-xs mt-1">Click "Run Simulation" to get started.</p>
-            </div>
-          )}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Evaluations</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1.5">
+                {recentEvals.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2">No evaluations yet.</p>
+                ) : (
+                  recentEvals.map(({ evaluation, sim }) => {
+                    const score = meanScore(evaluation, 'comprehension_score');
+                    return (
+                      <button
+                        key={evaluation.id ?? sim.id}
+                        className="w-full flex items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-muted/40 transition-colors text-left"
+                        onClick={() => navigate('/judge')}
+                      >
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="text-sm font-medium truncate">{sim.persona_name}</span>
+                          <span className="text-xs text-muted-foreground truncate">{sim.scenario_name}</span>
+                        </div>
+                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs px-1.5 py-0 shrink-0 tabular-nums">
+                          {score != null ? score.toFixed(0) : '—'}
+                        </Badge>
+                      </button>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
         </div>
       </ScrollArea>

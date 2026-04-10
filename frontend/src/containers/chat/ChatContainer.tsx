@@ -3,12 +3,11 @@ import { Header } from '@/components/common/Header';
 import { Sidebar } from '@/components/chat/Sidebar';
 import { MessageList } from '@/components/chat/MessageList';
 import { ChatInput } from '@/components/chat/ChatInput';
-import { ModelSelector } from '@/components/chat/ModelSelector';
 
 export function ChatContainer() {
   const {
-    sessions, activeSessionId, activeModel, turns, streamingContent,
-    isStreaming, availableModels, selectSession, newChat, send, setModel, removeSession,
+    sessions, activeSessionId, turns, streamingContent,
+    isStreaming, selectSession, newChat, send, removeSession,
   } = useChat();
 
   const activeTitle = sessions.find((s) => s.id === activeSessionId)?.title ?? '';
@@ -23,16 +22,7 @@ export function ChatContainer() {
         onDeleteSession={removeSession}
       />
       <div className="flex flex-1 flex-col">
-        <Header title={activeTitle}>
-          {activeSessionId && (
-            <ModelSelector
-              models={availableModels}
-              selected={activeModel}
-              onSelect={setModel}
-              disabled={isStreaming}
-            />
-          )}
-        </Header>
+        <Header title={activeTitle} />
         {activeSessionId ? (
           <>
             <MessageList turns={turns} streamingContent={streamingContent} />

@@ -1,4 +1,7 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
+
+from core.types.distribution import DoctorDistribution, PatientDistribution
+from core.types.judge_result import JudgeResult
 
 
 @dataclass
@@ -26,8 +29,31 @@ class TurnRecord:
 
 
 @dataclass
+class ExperimentRecord:
+    id: str
+    name: str
+    created_at: str
+    patient_distribution: PatientDistribution
+    doctor_distribution: DoctorDistribution
+
+    def to_summary_dict(self) -> dict:
+        """Shallow representation — skips the heavy distributions."""
+        return {"id": self.id, "name": self.name, "created_at": self.created_at}
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "created_at": self.created_at,
+            "patient_distribution": asdict(self.patient_distribution),
+            "doctor_distribution": asdict(self.doctor_distribution),
+        }
+
+
+@dataclass
 class SimulationRecord:
     id: str
+    experiment_id: str
     persona_name: str
     scenario_name: str
     model: str
@@ -58,19 +84,15 @@ class SimulationTurnRecord:
 
 @dataclass
 class EvaluationRecord:
-    id: int
+    id: int | None
     simulation_id: str
-    model: str
-    comprehension_score: float | None
-    factual_recall: float | None
-    applied_reasoning: float | None
-    explanation_quality: float | None
-    interaction_quality: float | None
-    confidence_comprehension_gap: str | None
-    justification: str | None
-    created_at: str
-    persona_name: str | None = None
-    scenario_name: str | None = None
+    created_at: str | None
+    judge_results: list[JudgeResult] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return {
+            "id": self.id,
+            "simulation_id": self.simulation_id,
+            "created_at": self.created_at,
+            "judge_results": [j.to_dict() for j in self.judge_results],
+        }

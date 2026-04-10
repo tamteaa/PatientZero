@@ -21,6 +21,7 @@ class SimulationService:
 
     def create_and_start(
         self,
+        experiment_id: str,
         doctor_profile: AgentProfile,
         patient_profile: AgentProfile,
         scenario: Scenario,
@@ -37,6 +38,7 @@ class SimulationService:
 
         sim_record = create_simulation(
             self.db,
+            experiment_id=experiment_id,
             persona_name=patient_profile.name,
             scenario_name=scenario.name,
             model=model,

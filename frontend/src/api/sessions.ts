@@ -1,5 +1,19 @@
 import type { Session, SessionDetail } from '@/types/chat';
-import type { AgentProfile, Evaluation, Scenario, SimulationConfig, SimulationDetail, SimulationRole, SimulationSummary } from '@/types/simulation';
+import type {
+  AgentProfile,
+  AppSettings,
+  CoverageReport,
+  DoctorDistributionResponse,
+  Evaluation,
+  Experiment,
+  ExperimentDetail,
+  PatientDistributionResponse,
+  Scenario,
+  SimulationConfig,
+  SimulationDetail,
+  SimulationRole,
+  SimulationSummary,
+} from '@/types/simulation';
 import { client, API_BASE } from './client';
 
 // ── Sessions ────────────────────────────────────────────────────────────────
@@ -32,6 +46,49 @@ export async function deleteSession(id: string): Promise<void> {
 
 export async function listModels(): Promise<string[]> {
   const { data } = await client.get('/models');
+  return data;
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  const { data } = await client.get('/settings');
+  return data;
+}
+
+// ── Experiments ─────────────────────────────────────────────────────────────
+
+export async function listExperiments(): Promise<Experiment[]> {
+  const { data } = await client.get('/experiments');
+  return data;
+}
+
+export async function createExperiment(name: string): Promise<Experiment> {
+  const { data } = await client.post('/experiments', { name });
+  return data;
+}
+
+export async function getExperiment(id: string): Promise<ExperimentDetail> {
+  const { data } = await client.get(`/experiments/${id}`);
+  return data;
+}
+
+export async function deleteExperiment(id: string): Promise<void> {
+  await client.delete(`/experiments/${id}`);
+}
+
+export async function getExperimentCoverage(id: string): Promise<CoverageReport> {
+  const { data } = await client.get(`/experiments/${id}/coverage`);
+  return data;
+}
+
+// ── Distributions ───────────────────────────────────────────────────────────
+
+export async function getPatientDistribution(): Promise<PatientDistributionResponse> {
+  const { data } = await client.get('/distributions/patient');
+  return data;
+}
+
+export async function getDoctorDistribution(): Promise<DoctorDistributionResponse> {
+  const { data } = await client.get('/distributions/doctor');
   return data;
 }
 
