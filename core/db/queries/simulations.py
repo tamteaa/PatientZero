@@ -20,12 +20,22 @@ def create_simulation(
     scenario_name: str,
     model: str,
     config: dict,
+    optimization_target_id: str | None = None,
 ) -> SimulationRecord:
     sim_id = str(uuid.uuid4())
     db.execute(
-        """INSERT INTO simulations (id, experiment_id, persona_name, scenario_name, model, config_json)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (sim_id, experiment_id, persona_name, scenario_name, model, json.dumps(config)),
+        """INSERT INTO simulations (
+               id, experiment_id, persona_name, scenario_name, model, config_json, optimization_target_id
+           ) VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            sim_id,
+            experiment_id,
+            persona_name,
+            scenario_name,
+            model,
+            json.dumps(config),
+            optimization_target_id,
+        ),
     )
     return _sim(db.conn.execute("SELECT * FROM simulations WHERE id = ?", (sim_id,)).fetchone())
 

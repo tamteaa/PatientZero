@@ -18,7 +18,7 @@ from core.db.queries.evaluations import (
     get_evaluation,
     list_evaluations,
 )
-from core.db.queries.experiments import get_experiment
+from core.db.queries.experiments import acquire_next_sample_rng, get_experiment
 from core.db.queries.simulations import (
     delete_simulation,
     get_simulation,
@@ -151,8 +151,10 @@ async def simulate(request: SimulateRequest):
     if request.doctor_verbosity and request.doctor_verbosity not in _VALID_VERBOSITY:
         raise HTTPException(status_code=400, detail=f"doctor_verbosity must be one of {_VALID_VERBOSITY}")
 
+    sample_rng = acquire_next_sample_rng(db, request.experiment_id)
+
     if not request.scenario_name or request.scenario_name == "random":
-        scenario = StaticScenarioGenerator().generate(n=1)[0]
+        scenario = StaticScenarioGenerator().generate(n=1, rng=sample_rng)[0]
     else:
         scenario = next((s for s in SCENARIOS if s.name == request.scenario_name), None)
         if not scenario:
@@ -162,11 +164,13 @@ async def simulate(request: SimulateRequest):
         n=1,
         literacy=request.patient_literacy,
         anxiety=request.patient_anxiety,
+        rng=sample_rng,
     )[0]
     doctor = StaticDoctorGenerator(distribution=experiment.doctor_distribution).generate(
         n=1,
         empathy=request.doctor_empathy,
         verbosity=request.doctor_verbosity,
+        rng=sample_rng,
     )[0]
 
     if len(simulation_service._active) >= APP_SETTINGS.max_concurrent_simulations:

@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS experiments (
     patient_distribution_json TEXT NOT NULL,
     doctor_distribution_json TEXT NOT NULL,
     current_optimization_target_id TEXT,
+    sampling_seed INTEGER,
+    sample_draw_index INTEGER NOT NULL DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -44,10 +46,12 @@ CREATE TABLE IF NOT EXISTS simulations (
     config_json TEXT NOT NULL,
     duration_ms REAL,
     created_at TEXT DEFAULT (datetime('now')),
-    completed_at TEXT
+    completed_at TEXT,
+    optimization_target_id TEXT REFERENCES optimization_targets(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_simulations_experiment ON simulations(experiment_id);
+CREATE INDEX IF NOT EXISTS idx_simulations_optimization_target ON simulations(optimization_target_id);
 
 CREATE TABLE IF NOT EXISTS simulation_turns (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

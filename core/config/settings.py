@@ -5,7 +5,18 @@ from core.types.settings import AppSettings
 
 load_dotenv()
 
-APP_SETTINGS = AppSettings()
+
+def _int_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or str(raw).strip() == "":
+        return default
+    return int(raw)
+
+
+APP_SETTINGS = AppSettings(
+    max_concurrent_simulations=_int_env("MAX_CONCURRENT_SIMULATIONS", 5),
+    max_concurrent_optimizations=_int_env("MAX_CONCURRENT_OPTIMIZATIONS", 1),
+)
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock")
 DB_PATH = os.getenv("DB_PATH", "patientzero.db")

@@ -13,10 +13,11 @@ class Distribution:
         if not math.isclose(total, 1.0, abs_tol=1e-3):
             raise ValueError(f"Distribution weights must sum to 1.0, got {total}")
 
-    def sample(self) -> str:
+    def sample(self, rng: random.Random | None = None) -> str:
+        r = rng or random
         values = list(self.weights.keys())
         ws = list(self.weights.values())
-        return random.choices(values, weights=ws, k=1)[0]
+        return r.choices(values, weights=ws, k=1)[0]
 
     @classmethod
     def from_dict(cls, d: dict) -> "Distribution":
@@ -28,10 +29,10 @@ class ConditionalDistribution:
     """P(child | parent). One Distribution per parent value."""
     by_parent: dict[str, Distribution]
 
-    def sample(self, parent: str) -> str:
+    def sample(self, parent: str, rng: random.Random | None = None) -> str:
         if parent not in self.by_parent:
             raise KeyError(f"No conditional distribution for parent value {parent!r}")
-        return self.by_parent[parent].sample()
+        return self.by_parent[parent].sample(rng=rng)
 
     @classmethod
     def from_dict(cls, d: dict) -> "ConditionalDistribution":

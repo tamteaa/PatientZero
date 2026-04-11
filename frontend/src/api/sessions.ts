@@ -7,6 +7,7 @@ import type {
   Evaluation,
   Experiment,
   ExperimentDetail,
+  OptimizationTarget,
   OptimizationResult,
   OptimizeRequest,
   PatientDistributionResponse,
@@ -77,8 +78,24 @@ export async function deleteExperiment(id: string): Promise<void> {
   await client.delete(`/experiments/${id}`);
 }
 
-export async function getExperimentCoverage(id: string): Promise<CoverageReport> {
-  const { data } = await client.get(`/experiments/${id}/coverage`);
+export async function getExperimentCoverage(
+  id: string,
+  params?: { target_method?: 'monte_carlo' | 'independence'; mc_samples?: number },
+): Promise<CoverageReport> {
+  const { data } = await client.get(`/experiments/${id}/coverage`, { params });
+  return data;
+}
+
+export interface PatchExperimentRequest {
+  sampling_seed?: number | null;
+  reset_sample_draw_index?: boolean;
+}
+
+export async function patchExperiment(
+  id: string,
+  body: PatchExperimentRequest,
+): Promise<ExperimentDetail> {
+  const { data } = await client.patch(`/experiments/${id}`, body);
   return data;
 }
 
@@ -87,6 +104,21 @@ export async function optimizeExperiment(
   request: OptimizeRequest = {},
 ): Promise<OptimizationResult> {
   const { data } = await client.post(`/experiments/${id}/optimize`, request);
+  return data;
+}
+
+export async function listOptimizationTargets(experimentId: string): Promise<OptimizationTarget[]> {
+  const { data } = await client.get(`/experiments/${experimentId}/optimization-targets`);
+  return data;
+}
+
+export async function setCurrentOptimizationTarget(
+  experimentId: string,
+  optimizationTargetId: string,
+): Promise<ExperimentDetail> {
+  const { data } = await client.post(`/experiments/${experimentId}/optimization-target/current`, {
+    optimization_target_id: optimizationTargetId,
+  });
   return data;
 }
 
@@ -232,6 +264,10 @@ export interface AnalysisResult {
   by_doctor_verbosity: Record<string, ScoreStats>;
   by_doctor_comprehension_checking: Record<string, ScoreStats>;
   by_scenario: Record<string, ScoreStats>;
+  by_style?: Record<string, ScoreStats>;
+  by_policy_version?: Record<string, ScoreStats>;
+  by_experiment_id?: Record<string, ScoreStats>;
+  by_optimization_target_id?: Record<string, ScoreStats>;
   effect_sizes: Record<string, Record<MetricKey, EffectSizeTriple | VerbosityEffectTriple>>;
   gap_analysis: GapAnalysis;
   worst_combinations: WorstCombo[];

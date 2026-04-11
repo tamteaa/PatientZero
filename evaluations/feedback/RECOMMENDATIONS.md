@@ -5,10 +5,10 @@ This document closes the **manual feedback loop** for the **low–health-literac
 ## What shipped in-repo
 
 - **DB `experiments` + `optimization_targets`** — seeded prompts from `prompts.py`; **Optimize** stub + `FeedbackService` (`todos.md`).
-- **Simulations** store **`experiments.id` (FK)**; optional **`batch_id`** in `config_json` for A/B labels (compare API query params still use the names `baseline_experiment_id` / `candidate_experiment_id` but values are **`batch_id`** strings).
+- **Simulations** store **`experiments.id` (FK)**; optional **`batch_id`** in `config_json` for A/B labels. Compare API: prefer **`baseline_batch_id` / `candidate_batch_id`**; legacy **`baseline_experiment_id` / `candidate_experiment_id`** unchanged. **`simulations.optimization_target_id`** (and config mirror) supports **`by_optimization_target_id`** on **`GET /api/analysis`**.
 - **Versioned doctor policies** in `core/agents/prompts.py`: `baseline`, `v2_low_literacy_checks`, `v3_anxiety_first` (overlays on top of the current optimization target template).
 - **`SimulationService`** loads the experiment’s **current optimization target** templates when building agents.
-- **Analysis slicing + compare API**: `GET /api/analysis/compare?...` (`backend/api/routes/analysis.py`).
+- **Analysis slicing + compare API**: `GET /api/analysis/compare?...` (`backend/api/routes/analysis.py`); list/revert targets via `/api/experiments/{id}/optimization-targets` and `POST .../optimization-target/current`.
 - **Batch runner**: `evaluations/feedback/run_feedback_cycle.py` — requires `--experiment-db-id` + `--batch-id` (or deprecated `--experiment-id`).
 - **Runbook**: `evaluations/feedback/RUNBOOK.md`.
 

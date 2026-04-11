@@ -8,7 +8,8 @@ result out.
 
 Current body is a stub: it mints a new target by lightly marking the
 parent's prompts, and fabricates monotonic candidate scores around a
-baseline derived from the signal. Swap `Feedback.run` once DSPy lands.
+baseline derived from the signal. For DSPy wiring, start from
+``core.llm.dspy_adapter`` and replace ``Feedback.run`` when ready.
 """
 
 import uuid

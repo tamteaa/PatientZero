@@ -32,9 +32,12 @@ export interface Experiment {
   name: string;
   created_at: string;
   current_optimization_target_id: string | null;
+  /** Integer seed for reproducible profile draws; null = unseeded (global random). */
+  sampling_seed: number | null;
 }
 
 export interface ExperimentDetail extends Experiment {
+  sample_draw_index: number;
   patient_distribution: PatientDistribution;
   doctor_distribution: DoctorDistribution;
 }
@@ -80,6 +83,10 @@ export interface CoverageReport {
   simulations_counted: number;
   coverage_pct: number;  // 0.0–1.0
   estimated_total_needed: number;
+  target_method?: 'monte_carlo' | 'independence';
+  mc_samples?: number | null;
+  /** 1 − TVD between target cell distribution and completed sims (when available). */
+  distribution_match?: number | null;
 }
 
 // ── Feedback / optimization ─────────────────────────────────────────────────
@@ -191,4 +198,5 @@ export function meanScore(ev: Evaluation, key: JudgeScoreKey): number | null {
 
 export interface AppSettings {
   max_concurrent_simulations: number;
+  max_concurrent_optimizations: number;
 }

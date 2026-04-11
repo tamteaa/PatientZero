@@ -19,16 +19,30 @@ export function SettingsPage() {
         <Card>
           <CardContent className="py-4 space-y-3">
             {settings ? (
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex flex-col">
-                  <span className="font-medium">Max concurrent simulations</span>
-                  <span className="text-xs text-muted-foreground">
-                    Hard cap on parallel simulation runs. Requests beyond this return 429.
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex flex-col">
+                    <span className="font-medium">Max concurrent simulations</span>
+                    <span className="text-xs text-muted-foreground">
+                      Hard cap on parallel simulation runs. Requests beyond this return 429.
+                    </span>
+                  </div>
+                  <span className="tabular-nums text-base font-semibold">
+                    {settings.max_concurrent_simulations}
                   </span>
                 </div>
-                <span className="tabular-nums text-base font-semibold">
-                  {settings.max_concurrent_simulations}
-                </span>
+                <div className="flex items-center justify-between text-sm border-t pt-4">
+                  <div className="flex flex-col">
+                    <span className="font-medium">Max concurrent optimizations</span>
+                    <span className="text-xs text-muted-foreground">
+                      From <code className="text-xs">MAX_CONCURRENT_OPTIMIZATIONS</code>. Extra optimize
+                      calls return 409 while a run is in progress.
+                    </span>
+                  </div>
+                  <span className="tabular-nums text-base font-semibold">
+                    {settings.max_concurrent_optimizations}
+                  </span>
+                </div>
               </div>
             ) : (
               <div className="text-sm text-muted-foreground">Loading…</div>

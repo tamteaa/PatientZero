@@ -14,7 +14,7 @@ Stats: mean, std, n per group + Cohen's d effect sizes for ordered traits.
 import json
 import math
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
 from backend.api.dependencies import db
@@ -108,7 +108,7 @@ def _fetch_rows() -> list[dict]:
         """
         SELECT
             e.judge_results_json,
-            s.persona_name, s.scenario_name, s.config_json
+            s.persona_name, s.scenario_name, s.config_json, s.optimization_target_id AS sim_optimization_target_id
         FROM evaluations e
         JOIN simulations s ON s.id = e.simulation_id
         WHERE s.state = 'completed'
@@ -126,6 +126,7 @@ def _fetch_rows() -> list[dict]:
         gaps = [j.get("confidence_comprehension_gap") for j in judge_results if j.get("confidence_comprehension_gap")]
         row["confidence_comprehension_gap"] = gaps[0] if gaps else None
         try:
+            sim_opt_id = row.pop("sim_optimization_target_id", None)
             cfg = json.loads(row.pop("config_json", "{}"))
             patient = cfg.get("patient", {})
             doctor = cfg.get("doctor", {})
@@ -145,7 +146,7 @@ def _fetch_rows() -> list[dict]:
             row["policy_version"] = cfg.get("policy_version")
             # Feedback-batch label for compare/export (legacy key: experiment_id in config_json)
             row["experiment_id"] = cfg.get("batch_id") or cfg.get("experiment_id")
-            row["optimization_target_id"] = cfg.get("optimization_target_id")
+            row["optimization_target_id"] = sim_opt_id or cfg.get("optimization_target_id")
         except Exception:
             pass
         rows.append(row)
@@ -232,6 +233,7 @@ def _summary_from_rows(rows: list[dict]) -> dict:
         "by_style": {},
         "by_policy_version": {},
         "by_experiment_id": {},
+        "by_optimization_target_id": {},
         "effect_sizes": {},
         "gap_analysis": {"total_with_gap": 0, "gap_rate": 0.0, "by_literacy": {}, "by_scenario": {}, "by_doctor_empathy": {}},
         "worst_combinations": [],
@@ -250,6 +252,7 @@ def _summary_from_rows(rows: list[dict]) -> dict:
     style_groups = _group_by(rows, lambda r: r.get("style"))
     policy_groups = _group_by(rows, lambda r: r.get("policy_version"))
     experiment_groups = _group_by(rows, lambda r: r.get("experiment_id"))
+    opt_target_groups = _group_by(rows, lambda r: r.get("optimization_target_id"))
 
     by_literacy   = {k: _score_stats(v) for k, v in lit_groups.items()}
     by_anxiety    = {k: _score_stats(v) for k, v in anx_groups.items()}
@@ -261,6 +264,7 @@ def _summary_from_rows(rows: list[dict]) -> dict:
     by_style      = {k: _score_stats(v) for k, v in style_groups.items()}
     by_policy     = {k: _score_stats(v) for k, v in policy_groups.items()}
     by_experiment = {k: _score_stats(v) for k, v in experiment_groups.items()}
+    by_opt_target = {k: _score_stats(v) for k, v in opt_target_groups.items()}
 
     # ── Effect sizes ─────────────────────────────────────────────────────────
     effect_sizes = {
@@ -319,6 +323,7 @@ def _summary_from_rows(rows: list[dict]) -> dict:
         "by_style": by_style,
         "by_policy_version": by_policy,
         "by_experiment_id": by_experiment,
+        "by_optimization_target_id": by_opt_target,
         "effect_sizes": effect_sizes,
         "gap_analysis": _gap_analysis(rows),
         "worst_combinations": worst[:10],
@@ -363,12 +368,29 @@ def export_csv():
 
 @router.get("/analysis/compare")
 def compare_analysis(
-    baseline_experiment_id: str,
-    candidate_experiment_id: str,
+    baseline_experiment_id: str | None = Query(
+        None, description="Legacy alias for baseline_batch_id (feedback batch label)"
+    ),
+    candidate_experiment_id: str | None = Query(
+        None, description="Legacy alias for candidate_batch_id (feedback batch label)"
+    ),
+    baseline_batch_id: str | None = Query(None, description="Preferred: baseline batch_id from config"),
+    candidate_batch_id: str | None = Query(None, description="Preferred: candidate batch_id from config"),
 ):
+    b_id = baseline_batch_id or baseline_experiment_id
+    c_id = candidate_batch_id or candidate_experiment_id
+    if not b_id or not c_id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Provide baseline and candidate batch ids: baseline_batch_id and candidate_batch_id "
+                "(or legacy baseline_experiment_id and candidate_experiment_id)."
+            ),
+        )
+
     rows = _fetch_rows()
-    baseline_rows = [r for r in rows if r.get("experiment_id") == baseline_experiment_id]
-    candidate_rows = [r for r in rows if r.get("experiment_id") == candidate_experiment_id]
+    baseline_rows = [r for r in rows if r.get("experiment_id") == b_id]
+    candidate_rows = [r for r in rows if r.get("experiment_id") == c_id]
 
     baseline = _summary_from_rows(baseline_rows)
     candidate = _summary_from_rows(candidate_rows)
@@ -391,8 +413,10 @@ def compare_analysis(
     candidate_gap = candidate.get("gap_analysis", {}).get("gap_rate")
 
     return {
-        "baseline_experiment_id": baseline_experiment_id,
-        "candidate_experiment_id": candidate_experiment_id,
+        "baseline_batch_id": b_id,
+        "candidate_batch_id": c_id,
+        "baseline_experiment_id": b_id,
+        "candidate_experiment_id": c_id,
         "baseline_total_evaluations": baseline.get("total_evaluations", 0),
         "candidate_total_evaluations": candidate.get("total_evaluations", 0),
         "overall_metric_deltas": overall_deltas,

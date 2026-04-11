@@ -34,6 +34,7 @@ def test_client(db):
     import backend.api.routes.chat as chat_module
     import backend.api.routes.simulate as simulate_module
     import backend.api.routes.experiments as experiments_module
+    import backend.api.routes.analysis as analysis_module
 
     original_deps_db = backend.api.dependencies.db
     original_main_db = main_module.db
@@ -41,6 +42,7 @@ def test_client(db):
     original_sim_db = simulate_module.db
     original_sim_service = simulate_module.simulation_service
     original_exp_db = experiments_module.db
+    original_analysis_db = analysis_module.db
 
     test_service = SimulationService(db, SimulationLogger())
 
@@ -50,6 +52,7 @@ def test_client(db):
     simulate_module.db = db
     simulate_module.simulation_service = test_service
     experiments_module.db = db
+    analysis_module.db = db
 
     with TestClient(app) as client:
         yield client
@@ -60,3 +63,4 @@ def test_client(db):
     simulate_module.db = original_sim_db
     simulate_module.simulation_service = original_sim_service
     experiments_module.db = original_exp_db
+    analysis_module.db = original_analysis_db

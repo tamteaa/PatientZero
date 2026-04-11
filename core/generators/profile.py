@@ -51,9 +51,10 @@ _DOCTOR_NAMES = [
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _weighted_choice(options: list[tuple[str, float]]) -> str:
+def _weighted_choice(options: list[tuple[str, float]], rng: random.Random | None = None) -> str:
+    r = rng or random
     values, weights = zip(*options)
-    return random.choices(list(values), weights=list(weights), k=1)[0]
+    return r.choices(list(values), weights=list(weights), k=1)[0]
 
 
 # ── Abstract base ─────────────────────────────────────────────────────────────
@@ -86,34 +87,46 @@ class StaticPatientGenerator(ProfileGenerator):
         self.distribution = distribution
         self._used_names: set[str] = used_names or set()
 
-    def generate(self, n: int = 1, literacy: str | None = None, anxiety: str | None = None) -> list[AgentProfile]:
-        return [self._generate_one(literacy=literacy, anxiety=anxiety) for _ in range(n)]
+    def generate(
+        self,
+        n: int = 1,
+        literacy: str | None = None,
+        anxiety: str | None = None,
+        rng: random.Random | None = None,
+    ) -> list[AgentProfile]:
+        return [self._generate_one(literacy=literacy, anxiety=anxiety, rng=rng) for _ in range(n)]
 
-    def _generate_one(self, literacy: str | None = None, anxiety: str | None = None) -> AgentProfile:
+    def _generate_one(
+        self,
+        literacy: str | None = None,
+        anxiety: str | None = None,
+        rng: random.Random | None = None,
+    ) -> AgentProfile:
+        r = rng or random
         d = self.distribution
 
         # 1. Age bucket + concrete age
-        bucket = d.age.sample()
+        bucket = d.age.sample(rng=r)
         lo, hi = AGE_BUCKET_RANGES[bucket]
-        age = random.randint(lo, hi)
+        age = r.randint(lo, hi)
 
         # 2. Education (conditioned on age bucket)
-        education = d.education_by_age.sample(bucket)
+        education = d.education_by_age.sample(bucket, rng=r)
 
         # 3. Literacy — use constraint if given, else sample from education (NAAL)
         if literacy is None:
-            literacy = d.literacy_by_education.sample(education)
+            literacy = d.literacy_by_education.sample(education, rng=r)
 
         # 4. Anxiety — use constraint if given, else sample from age bucket (NHIS)
         if anxiety is None:
-            anxiety = d.anxiety_by_age.sample(bucket)
+            anxiety = d.anxiety_by_age.sample(bucket, rng=r)
 
         # 5. Behavioral tendency (conditioned on final literacy)
-        tendency = d.tendency_by_literacy.sample(literacy)
+        tendency = d.tendency_by_literacy.sample(literacy, rng=r)
 
         # 6. Name (from demographic group)
-        group = _weighted_choice(list(_GROUP_WEIGHTS.items()))
-        name = self._pick_name(group)
+        group = _weighted_choice(list(_GROUP_WEIGHTS.items()), rng=r)
+        name = self._pick_name(group, rng=r)
 
         backstory = self._backstory(age, education, literacy, anxiety, tendency)
 
@@ -130,15 +143,16 @@ class StaticPatientGenerator(ProfileGenerator):
             backstory=backstory,
         )
 
-    def _pick_name(self, group: str) -> str:
+    def _pick_name(self, group: str, rng: random.Random | None = None) -> str:
+        r = rng or random
         pool = _NAMES_BY_GROUP.get(group, _NAMES_BY_GROUP["white"])
         available = [n for n in pool if n not in self._used_names]
         if not available:
             # Exhausted pool — allow repeats with suffix
-            base = random.choice(pool)
+            base = r.choice(pool)
             name = f"{base} Jr."
         else:
-            name = random.choice(available)
+            name = r.choice(available)
         self._used_names.add(name)
         return name
 
@@ -192,31 +206,43 @@ class StaticDoctorGenerator(ProfileGenerator):
         self._used_names: set[str] = used_names or set()
         self._name_pool = list(_DOCTOR_NAMES)
 
-    def generate(self, n: int = 1, empathy: str | None = None, verbosity: str | None = None) -> list[AgentProfile]:
-        return [self._generate_one(empathy=empathy, verbosity=verbosity) for _ in range(n)]
+    def generate(
+        self,
+        n: int = 1,
+        empathy: str | None = None,
+        verbosity: str | None = None,
+        rng: random.Random | None = None,
+    ) -> list[AgentProfile]:
+        return [self._generate_one(empathy=empathy, verbosity=verbosity, rng=rng) for _ in range(n)]
 
-    def _generate_one(self, empathy: str | None = None, verbosity: str | None = None) -> AgentProfile:
+    def _generate_one(
+        self,
+        empathy: str | None = None,
+        verbosity: str | None = None,
+        rng: random.Random | None = None,
+    ) -> AgentProfile:
+        r = rng or random
         d = self.distribution
 
         # 1. Practice setting
-        setting = d.setting.sample()
+        setting = d.setting.sample(rng=r)
 
         # 2. Time pressure (conditioned on setting)
-        time_pressure = d.time_pressure_by_setting.sample(setting)
+        time_pressure = d.time_pressure_by_setting.sample(setting, rng=r)
 
         # 3. Verbosity — use constraint if given, else sample from time pressure
         if verbosity is None:
-            verbosity = d.verbosity_by_time_pressure.sample(time_pressure)
+            verbosity = d.verbosity_by_time_pressure.sample(time_pressure, rng=r)
 
         # 4. Empathy — use constraint if given, else sample from CAHPS distribution
         if empathy is None:
-            empathy = d.empathy.sample()
+            empathy = d.empathy.sample(rng=r)
 
         # 5. Comprehension checking (conditioned on final empathy — RIAS)
-        comp_check = d.comprehension_check_by_empathy.sample(empathy)
+        comp_check = d.comprehension_check_by_empathy.sample(empathy, rng=r)
 
         # 6. Name
-        name = self._pick_name()
+        name = self._pick_name(rng=r)
 
         backstory = (
             f"{setting.capitalize()} physician. "
@@ -237,10 +263,11 @@ class StaticDoctorGenerator(ProfileGenerator):
             backstory=backstory,
         )
 
-    def _pick_name(self) -> str:
+    def _pick_name(self, rng: random.Random | None = None) -> str:
+        r = rng or random
         available = [n for n in self._name_pool if n not in self._used_names]
         if not available:
             available = self._name_pool
-        name = random.choice(available)
+        name = r.choice(available)
         self._used_names.add(name)
         return name

@@ -36,6 +36,8 @@ class ExperimentRecord:
     patient_distribution: PatientDistribution
     doctor_distribution: DoctorDistribution
     current_optimization_target_id: str | None
+    sampling_seed: int | None = None
+    sample_draw_index: int = 0
 
     def to_summary_dict(self) -> dict:
         """Shallow representation — skips the heavy distributions."""
@@ -44,6 +46,7 @@ class ExperimentRecord:
             "name": self.name,
             "created_at": self.created_at,
             "current_optimization_target_id": self.current_optimization_target_id,
+            "sampling_seed": self.sampling_seed,
         }
 
     def to_dict(self) -> dict:
@@ -52,6 +55,8 @@ class ExperimentRecord:
             "name": self.name,
             "created_at": self.created_at,
             "current_optimization_target_id": self.current_optimization_target_id,
+            "sampling_seed": self.sampling_seed,
+            "sample_draw_index": self.sample_draw_index,
             "patient_distribution": asdict(self.patient_distribution),
             "doctor_distribution": asdict(self.doctor_distribution),
         }
@@ -70,6 +75,7 @@ class SimulationRecord:
     created_at: str
     completed_at: str | None
     style: str | None = None
+    optimization_target_id: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)

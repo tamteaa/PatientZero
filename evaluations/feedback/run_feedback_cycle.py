@@ -14,7 +14,7 @@ from core.agents.sim_agent import SimAgent
 from core.config.settings import DB_PATH
 from core.db.database import Database
 from core.db.queries.evaluations import create_evaluation, delete_evaluation
-from core.db.queries.experiments import get_experiment
+from core.db.queries.experiments import acquire_next_sample_rng, get_experiment
 from core.db.queries.simulations import (
     create_simulation,
     fail_simulation,
@@ -41,7 +41,7 @@ def _analysis_rows(db: Database) -> list[dict]:
         """
         SELECT
             e.judge_results_json,
-            s.persona_name, s.scenario_name, s.config_json
+            s.persona_name, s.scenario_name, s.config_json, s.optimization_target_id AS sim_optimization_target_id
         FROM evaluations e
         JOIN simulations s ON s.id = e.simulation_id
         WHERE s.state = 'completed'
@@ -61,9 +61,10 @@ def _analysis_rows(db: Database) -> list[dict]:
             if j.get("confidence_comprehension_gap")
         ]
         row["confidence_comprehension_gap"] = gaps[0] if gaps else None
+        sim_opt_id = row.pop("sim_optimization_target_id", None)
         cfg = json.loads(row.pop("config_json", "{}"))
         row["experiment_id"] = cfg.get("batch_id") or cfg.get("experiment_id")
-        row["optimization_target_id"] = cfg.get("optimization_target_id")
+        row["optimization_target_id"] = sim_opt_id or cfg.get("optimization_target_id")
         row["policy_version"] = cfg.get("policy_version")
         row["style"] = cfg.get("style")
         pt = cfg.get("patient", {}).get("traits", {})
@@ -144,9 +145,14 @@ def start_batch(
     doctor_gen = StaticDoctorGenerator(distribution=exp.doctor_distribution)
     scenario_gen = StaticScenarioGenerator()
     for _ in range(n_runs):
-        doctor_profile = doctor_gen.generate(n=1, empathy=doctor_empathy, verbosity=doctor_verbosity)[0]
-        patient_profile = patient_gen.generate(n=1, literacy=patient_literacy, anxiety=patient_anxiety)[0]
-        scenario = scenario_gen.generate(n=1)[0]
+        sample_rng = acquire_next_sample_rng(db, experiment_db_id)
+        doctor_profile = doctor_gen.generate(
+            n=1, empathy=doctor_empathy, verbosity=doctor_verbosity, rng=sample_rng
+        )[0]
+        patient_profile = patient_gen.generate(
+            n=1, literacy=patient_literacy, anxiety=patient_anxiety, rng=sample_rng
+        )[0]
+        scenario = scenario_gen.generate(n=1, rng=sample_rng)[0]
 
         sim_record = create_simulation(
             db=db,
@@ -164,6 +170,7 @@ def start_batch(
                 "batch_id": batch_id,
                 "optimization_target_id": exp.current_optimization_target_id,
             },
+            optimization_target_id=exp.current_optimization_target_id,
         )
 
         doctor = SimAgent(

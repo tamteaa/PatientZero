@@ -20,7 +20,30 @@ class Database:
         schema_path = Path(__file__).parent / "schema.sql"
         schema = schema_path.read_text()
         self.conn.executescript(schema)
+        self._migrate_simulations_optimization_target()
+        self._migrate_experiments_sampling()
         self.conn.commit()
+
+    def _migrate_simulations_optimization_target(self) -> None:
+        cols = {row[1] for row in self.conn.execute("PRAGMA table_info(simulations)")}
+        if "optimization_target_id" not in cols:
+            self.conn.execute(
+                "ALTER TABLE simulations ADD COLUMN optimization_target_id TEXT "
+                "REFERENCES optimization_targets(id)"
+            )
+            self.conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_simulations_optimization_target "
+                "ON simulations(optimization_target_id)"
+            )
+
+    def _migrate_experiments_sampling(self) -> None:
+        cols = {row[1] for row in self.conn.execute("PRAGMA table_info(experiments)")}
+        if "sampling_seed" not in cols:
+            self.conn.execute("ALTER TABLE experiments ADD COLUMN sampling_seed INTEGER")
+        if "sample_draw_index" not in cols:
+            self.conn.execute(
+                "ALTER TABLE experiments ADD COLUMN sample_draw_index INTEGER NOT NULL DEFAULT 0"
+            )
 
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
         cursor = self.conn.execute(query, params)

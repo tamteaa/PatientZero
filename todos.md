@@ -33,8 +33,8 @@ The feedback loop is scaffolded end-to-end but the optimization step is stubbed.
 
 ### Next — replace the stub with DSPy
 
-- [ ] Add `dspy` dependency (`uv add dspy`). Pin a version.
-- [ ] LM adapter: bridge `LLMProvider` → `dspy.LM` in `core/llm/dspy_adapter.py`. Must support the mock provider for cheap dev runs.
+- [x] Add **`dspy-ai`** dependency (pinned in `pyproject.toml`).
+- [x] Skeleton `core/llm/dspy_adapter.py` (`get_dspy` / `dspy_available`); **LM bridge** (`LLMProvider` → DSPy) still TODO.
 - [ ] Replace the body of `Feedback.run` in `core/feedback/feedback.py` with a real DSPy pipeline:
   - Signature with one output field per prompt name in `current_target.prompts`
   - Metric function uses `OptimizationMetric.score()` on the judge result (reuse existing `JudgeAgent`)
@@ -45,18 +45,18 @@ The feedback loop is scaffolded end-to-end but the optimization step is stubbed.
 
 ### UI polish (after DSPy lands)
 
-- [ ] Config dialog before optimize: metric weights sliders, seeding mode radio, num_candidates + trials_per_candidate number inputs
+- [x] **Optimize options** (collapsible): seeding mode, num_candidates, trials_per_candidate, worst_cases_k, comprehension weight — on Experiments page.
 - [ ] Optimization history card on the Experiments page: list of all targets in the chain (lineage via `parent_id`), with mean score at the time of each
-- [ ] View-current-prompt panel: show the raw `prompts["doctor"]` and `prompts["patient"]` strings for the current target so you can inspect what the optimizer produced
+- [x] **Current target prompts** collapsible on Experiments page (raw doctor/patient templates).
 - [ ] SSE progress stream for long-running optimize runs: `GET /api/experiments/{id}/optimize/stream`
-- [ ] "Revert to target" action on any historical target row → updates `current_optimization_target_id` without losing the newer rows
+- [x] "Revert to target" — **Use this target** on Experiments page + `POST /api/experiments/{id}/optimization-target/current`
 
 ---
 
 ## Coverage metric refinements
 
-- [ ] Replace the product-of-marginals independence assumption with Monte-Carlo-sampled empirical targets: sample 100k (patient, doctor) pairs from the experiment's generator, use empirical cell frequencies as the target. Cheap, principled, exactly correct under the joint the generator actually produces.
-- [ ] Add a distribution-match score alongside the hit-rate coverage: `1 − TVD(empirical, target)` clipped to [0,1].
+- [x] Replace the product-of-marginals independence assumption with **Monte Carlo** empirical targets (default on `GET /api/experiments/{id}/coverage`; `target_method=independence` for legacy).
+- [x] Add **distribution_match** (`1 − TVD` between target and completed-sim cell empirical).
 - [ ] Per-cell depth breakdown: `count / expected_count` per cell, surfaced as an overlay on the Dashboard coverage bar.
 
 ## Generator gaps
@@ -67,8 +67,8 @@ The feedback loop is scaffolded end-to-end but the optimization step is stubbed.
 
 ## Reproducibility
 
-- [ ] Per-experiment `seed` field so the sampling draw is exactly reproducible across runs.
-- [x] Stamp **`optimization_target_id` in simulation `config_json`** at creation (see Feedback Loop / manual batch sections). Optional: add a dedicated DB column later for indexing.
+- [x] Per-experiment **`sampling_seed`** + **`sample_draw_index`** with `PATCH /api/experiments/{id}`; deterministic draws for `POST /api/simulate` and the feedback CLI batch runner.
+- [x] Stamp **`optimization_target_id`** on simulations: dedicated **`simulations.optimization_target_id`** column (indexed) plus **`config_json`** mirror at creation (API + CLI).
 
 ## Dashboard
 

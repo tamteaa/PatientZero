@@ -27,6 +27,22 @@ def test_create_simulation(db, experiment):
     assert sim.state == "running"
 
 
+def test_create_simulation_optimization_target_id(db, experiment):
+    tid = experiment.current_optimization_target_id
+    sim = create_simulation(
+        db,
+        experiment_id=experiment.id,
+        persona_name="Maria Santos",
+        scenario_name="CBC",
+        model="mock:default",
+        config={"optimization_target_id": tid},
+        optimization_target_id=tid,
+    )
+    loaded = get_simulation(db, sim.id)
+    assert loaded is not None
+    assert loaded.optimization_target_id == tid
+
+
 def test_complete_simulation(db, experiment):
     sim = create_simulation(db, experiment.id, "Maria", "CBC", "mock:default", {})
     complete_simulation(db, sim.id, 1234.5)

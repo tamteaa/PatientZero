@@ -83,13 +83,15 @@ Distributions are modeled as frozen dataclasses (`Distribution`, `ConditionalDis
 
 ## Coverage Metric
 
-Defined per experiment. A "cell" is the joint of five observable traits: `(literacy, anxiety, age_bucket, empathy, verbosity)` — 324 cells under the baseline distributions.
+Defined per experiment. A "cell" is the joint of five observable traits: `(literacy, anxiety, age_bucket, empathy, verbosity)` — up to 324 cells under the baseline distributions.
 
-- **Target probability** per cell is the product of the marginals of those five traits under the experiment's frozen distributions. (First-order approximation: treats the five traits as independent for coverage bookkeeping. The true joint has correlations via the causal chain in the generators, but the simplification is sufficient for "have I sampled enough of the population to draw conclusions" questions.)
-- **Coverage %** = sum of target probabilities of cells that have been hit ≥ 1 time by completed simulations in the experiment.
+- **Default target (Monte Carlo)** — `GET /api/experiments/{id}/coverage` estimates each cell’s target mass by drawing many `(patient, doctor)` profile pairs through the same **StaticPatientGenerator** / **StaticDoctorGenerator** chains as the simulator (default 100k samples). That matches the **empirical joint** the product actually samples (correlations preserved).
+- **Legacy target (`target_method=independence`)** — product of one-dimensional marginals (treats the five traits as independent).
+- **Coverage %** = sum of target mass on cells hit ≥ 1 time by completed simulations in the experiment.
+- **Distribution match** = `1 − TVD` between the target cell distribution and the empirical distribution of completed sims (diagnostic).
 - **Estimated total needed** = `ceil(1 / min_p)` over cells with target probability ≥ 1%. "Enough simulations to expect every non-rare cell to be hit at least once."
 
-Both numbers are recomputed on demand by `GET /api/experiments/{id}/coverage`, which parses each simulation's `config_json` to locate its cell.
+**Reproducible sampling:** experiments may set optional **`sampling_seed`** and a monotonic **`sample_draw_index`**; each new simulation draw uses a deterministic RNG stream (`core/sampling.stable_rng`) so runs replay when the seed and ordering are unchanged.
 
 ## Research Value
 

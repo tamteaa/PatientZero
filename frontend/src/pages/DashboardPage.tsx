@@ -65,7 +65,7 @@ export function DashboardPage() {
       const sims = await listSimulations();
       setAllSimulations(sims);
       if (activeExperimentId) {
-        const cov = await getExperimentCoverage(activeExperimentId);
+        const cov = await getExperimentCoverage(activeExperimentId, { mc_samples: 12_000 });
         setCoverage(cov);
       }
     } catch (err) {
@@ -91,7 +91,7 @@ export function DashboardPage() {
       setCoverage(null);
       return;
     }
-    getExperimentCoverage(activeExperimentId)
+    getExperimentCoverage(activeExperimentId, { mc_samples: 12_000 })
       .then(setCoverage)
       .catch(() => setCoverage(null));
   }, [activeExperimentId]);
@@ -262,6 +262,24 @@ export function DashboardPage() {
                         {coverage.simulations_counted} / {coverage.estimated_total_needed}
                       </span>{' '}
                       simulations toward full coverage
+                      {coverage.target_method && (
+                        <>
+                          <br />
+                          Target: {coverage.target_method}
+                          {coverage.mc_samples != null && coverage.mc_samples > 0
+                            ? ` · MC samples ${coverage.mc_samples.toLocaleString()}`
+                            : ''}
+                        </>
+                      )}
+                      {coverage.distribution_match != null && (
+                        <>
+                          <br />
+                          Match to target (1 − TVD):{' '}
+                          <span className="tabular-nums font-medium text-foreground">
+                            {(coverage.distribution_match * 100).toFixed(1)}%
+                          </span>
+                        </>
+                      )}
                     </p>
                   </div>
                 )}

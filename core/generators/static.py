@@ -93,22 +93,25 @@ _TESTS = [
 ]
 
 
-def _generate_value(component: dict, abnormal: bool) -> tuple[float, str]:
+def _generate_value(
+    component: dict, abnormal: bool, rng: random.Random | None = None
+) -> tuple[float, str]:
     """Generate a value for a component, optionally abnormal. Returns (value, flag)."""
+    r = rng or random
     low, high = component["low"], component["high"]
     spread = high - low
 
     if not abnormal:
-        val = random.uniform(low, high)
+        val = r.uniform(low, high)
         return round(val, 1), ""
 
-    if random.random() < 0.5 and low > 0:
+    if r.random() < 0.5 and low > 0:
         # Low abnormal
-        val = random.uniform(max(0, low - spread * 0.4), low - 0.1)
+        val = r.uniform(max(0, low - spread * 0.4), low - 0.1)
         return round(val, 1), "L"
     else:
         # High abnormal
-        val = random.uniform(high + 0.1, high + spread * 0.4)
+        val = r.uniform(high + 0.1, high + spread * 0.4)
         return round(val, 1), "H"
 
 
@@ -118,18 +121,19 @@ class StaticScenarioGenerator(ScenarioGenerator):
     def __init__(self, abnormal_ratio: float = 0.3):
         self.abnormal_ratio = abnormal_ratio
 
-    def generate(self, n: int = 1) -> list[Scenario]:
-        return [self._generate_one() for _ in range(n)]
+    def generate(self, n: int = 1, rng: random.Random | None = None) -> list[Scenario]:
+        return [self._generate_one(rng=rng) for _ in range(n)]
 
-    def _generate_one(self) -> Scenario:
-        test = random.choice(_TESTS)
+    def _generate_one(self, rng: random.Random | None = None) -> Scenario:
+        r = rng or random
+        test = r.choice(_TESTS)
         results = []
         normals = []
         findings = []
 
         for comp in test["components"]:
-            is_abnormal = random.random() < self.abnormal_ratio
-            val, flag = _generate_value(comp, is_abnormal)
+            is_abnormal = r.random() < self.abnormal_ratio
+            val, flag = _generate_value(comp, is_abnormal, rng=r)
             flag_str = f" ({flag})" if flag else ""
             results.append(f"{comp['name']}: {val}{flag_str}")
             normals.append(f"{comp['name']}: {comp['low']}-{comp['high']} {comp['unit']}")
