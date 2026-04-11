@@ -21,6 +21,7 @@ from core.db.queries.optimization_targets import (
 )
 from core.db.queries.simulations import get_simulation_turns, list_simulations
 from core.feedback.feedback import Feedback
+from core.feedback.template_validation import PromptTemplateError, validate_optimization_prompts
 from core.types import (
     EvaluationRecord,
     FailureCase,
@@ -68,6 +69,11 @@ class FeedbackService:
         )
 
         result = self.feedback.run(request)
+
+        try:
+            validate_optimization_prompts(result.new_target.prompts)
+        except PromptTemplateError as e:
+            raise ValueError(str(e)) from e
 
         # Persist the winning candidate as a new row, then point the experiment at it.
         persisted = create_optimization_target(

@@ -63,6 +63,7 @@ def _analysis_rows(db: Database) -> list[dict]:
         row["confidence_comprehension_gap"] = gaps[0] if gaps else None
         cfg = json.loads(row.pop("config_json", "{}"))
         row["experiment_id"] = cfg.get("batch_id") or cfg.get("experiment_id")
+        row["optimization_target_id"] = cfg.get("optimization_target_id")
         row["policy_version"] = cfg.get("policy_version")
         row["style"] = cfg.get("style")
         pt = cfg.get("patient", {}).get("traits", {})
@@ -161,6 +162,7 @@ def start_batch(
                 "style": style,
                 "policy_version": policy_version,
                 "batch_id": batch_id,
+                "optimization_target_id": exp.current_optimization_target_id,
             },
         )
 
@@ -237,7 +239,7 @@ def save_artifacts(db: Database, output_dir: Path, batch_id: str):
         "patient_literacy", "patient_anxiety", "patient_tendency",
         "patient_age", "patient_education",
         "doctor_empathy", "doctor_verbosity", "doctor_comp_check", "doctor_time_pressure",
-        "style", "policy_version", "experiment_id",  # experiment_id column = batch label for compare
+        "style", "policy_version", "experiment_id", "optimization_target_id",
         "comprehension_score", "factual_recall", "applied_reasoning",
         "explanation_quality", "interaction_quality", "confidence_comprehension_gap",
     ]

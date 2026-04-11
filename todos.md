@@ -24,10 +24,12 @@ The feedback loop is scaffolded end-to-end but the optimization step is stubbed.
 
 - [x] CLI `evaluations/feedback/run_feedback_cycle.py` — uses `--experiment-db-id` + `--batch-id`, respects experiment distributions, writes artifacts under `evaluations/feedback/artifacts/<batch_id>/`.
 - [x] Evidence write-up: `evaluations/feedback/RECOMMENDATIONS.md` (low-literacy n=10 A/B).
+- [x] **`optimization_target_id` in `config_json`** on new simulations (API + CLI batch) and in **analysis CSV export** for downstream charts / grouping.
 
 ### Remaining template / optimizer nuances
 
-- [ ] If DSPy produces templates **without** the same placeholders as `_DOCTOR`, rendering will fail — validate or add a fallback path when Optimize persists new targets.
+- [x] **Validate templates before persisting** — `core/feedback/template_validation.py` + `FeedbackService.optimize` raises `400` if doctor/patient prompts lack required `.format` fields (`profile`, `scenario`, `style`, `style_instructions` for doctor; `profile` for patient). DSPy must still output compatible templates or we add a fallback layer later.
+- [ ] If DSPy produces **different** placeholder schemes, add an explicit adapter or fallback template (not just validation).
 
 ### Next — replace the stub with DSPy
 
@@ -39,7 +41,7 @@ The feedback loop is scaffolded end-to-end but the optimization step is stubbed.
   - Seeding mode switch: `HISTORICAL_FAILURES` replays the signal's `worst_cases` as DSPy examples; `FRESH_TRIALS` samples new examples from the experiment's distributions
   - Return the real `OptimizationResult` with actual candidates + scores
 - [ ] Caching: memoize metric calls by `hash(prompt + scenario + patient_traits)` to avoid re-running identical mini-sims across optimizer rounds
-- [ ] Concurrency cap: add `max_concurrent_optimizations: int = 1` to `AppSettings`, enforce in the optimize route
+- [x] **Concurrency cap** — `AppSettings.max_concurrent_optimizations` (default `1`); optimize route returns **409** if the semaphore cannot be acquired (non-blocking).
 
 ### UI polish (after DSPy lands)
 
@@ -66,7 +68,7 @@ The feedback loop is scaffolded end-to-end but the optimization step is stubbed.
 ## Reproducibility
 
 - [ ] Per-experiment `seed` field so the sampling draw is exactly reproducible across runs.
-- [ ] Stamp `optimization_target_id` on each completed simulation so historical "score vs target" plots are possible. Currently deferred because the user said no need for this, but revisit after DSPy lands — it becomes much more valuable once the target actually changes.
+- [x] Stamp **`optimization_target_id` in simulation `config_json`** at creation (see Feedback Loop / manual batch sections). Optional: add a dedicated DB column later for indexing.
 
 ## Dashboard
 

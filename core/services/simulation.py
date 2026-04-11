@@ -71,6 +71,7 @@ class SimulationService:
                 "style": style,
                 "policy_version": policy_version,
                 "batch_id": batch_id,
+                "optimization_target_id": exp.current_optimization_target_id if exp else None,
             },
         )
         sim_id = sim_record.id

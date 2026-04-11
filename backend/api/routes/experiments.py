@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field
 
+import threading
+
 from backend.api.dependencies import db
+from core.config.settings import APP_SETTINGS
 from core.analysis.coverage import compute_coverage
 from core.db.queries.experiments import (
     create_experiment,
@@ -18,6 +21,9 @@ from core.types import (
 )
 
 router = APIRouter()
+
+# Process-wide guard: at most N concurrent optimize runs (default 1).
+_optimize_semaphore = threading.Semaphore(APP_SETTINGS.max_concurrent_optimizations)
 
 
 class CreateExperimentRequest(BaseModel):
@@ -78,23 +84,36 @@ def optimize_experiment(exp_id: str, request: OptimizeRequest):
     if not exp:
         raise HTTPException(status_code=404, detail="Experiment not found")
 
+    acquired = _optimize_semaphore.acquire(blocking=False)
+    if not acquired:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Another optimization run is in progress "
+                f"(max_concurrent_optimizations={APP_SETTINGS.max_concurrent_optimizations})"
+            ),
+        )
+
     try:
-        seeding_mode = SeedingMode(request.seeding_mode)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Unknown seeding_mode: {request.seeding_mode}")
+        try:
+            seeding_mode = SeedingMode(request.seeding_mode)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Unknown seeding_mode: {request.seeding_mode}")
 
-    config = OptimizationConfig(
-        metric=OptimizationMetric(weights=request.metric_weights),
-        seeding_mode=seeding_mode,
-        num_candidates=request.num_candidates,
-        trials_per_candidate=request.trials_per_candidate,
-        worst_cases_k=request.worst_cases_k,
-    )
+        config = OptimizationConfig(
+            metric=OptimizationMetric(weights=request.metric_weights),
+            seeding_mode=seeding_mode,
+            num_candidates=request.num_candidates,
+            trials_per_candidate=request.trials_per_candidate,
+            worst_cases_k=request.worst_cases_k,
+        )
 
-    service = FeedbackService(db)
-    try:
-        result = service.optimize(exp_id, config)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        service = FeedbackService(db)
+        try:
+            result = service.optimize(exp_id, config)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
 
-    return result.to_dict()
+        return result.to_dict()
+    finally:
+        _optimize_semaphore.release()

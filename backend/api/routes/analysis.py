@@ -145,6 +145,7 @@ def _fetch_rows() -> list[dict]:
             row["policy_version"] = cfg.get("policy_version")
             # Feedback-batch label for compare/export (legacy key: experiment_id in config_json)
             row["experiment_id"] = cfg.get("batch_id") or cfg.get("experiment_id")
+            row["optimization_target_id"] = cfg.get("optimization_target_id")
         except Exception:
             pass
         rows.append(row)
@@ -336,7 +337,7 @@ def export_csv():
         "patient_literacy", "patient_anxiety", "patient_tendency",
         "patient_age", "patient_age_bucket", "patient_education",
         "doctor_empathy", "doctor_verbosity", "doctor_comp_check", "doctor_time_pressure",
-        "style", "policy_version", "experiment_id",
+        "style", "policy_version", "experiment_id", "optimization_target_id",
         "comprehension_score", "factual_recall", "applied_reasoning",
         "explanation_quality", "interaction_quality", "confidence_comprehension_gap",
     ]
