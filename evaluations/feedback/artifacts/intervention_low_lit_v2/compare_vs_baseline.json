@@ -1,0 +1,39 @@
+{
+  "baseline_experiment_id": "baseline_low_lit_v1",
+  "candidate_experiment_id": "intervention_low_lit_v2",
+  "cohort": "patient_literacy=low (forced in batch generator)",
+  "note": "intervention_low_lit_v2/analysis_experiment.csv contains 6 rows (two batches reused the same experiment_id). Primary comparison uses the 3 newest evaluations (first 3 data rows; evaluations ordered DESC by created_at). Secondary includes all 6 rows.",
+  "primary": {
+    "baseline_n": 3,
+    "candidate_n": 3,
+    "overall": {
+      "comprehension_score": { "baseline": 67.67, "candidate": 81.67, "delta": 14.0 },
+      "factual_recall": { "baseline": 40.67, "candidate": 66.67, "delta": 26.0 },
+      "applied_reasoning": { "baseline": 57.67, "candidate": 80.0, "delta": 22.33 },
+      "explanation_quality": { "baseline": 60.67, "candidate": 82.0, "delta": 21.33 },
+      "interaction_quality": { "baseline": 59.33, "candidate": 85.67, "delta": 26.34 }
+    },
+    "gap_rate": {
+      "baseline": 66.67,
+      "candidate": 33.33,
+      "delta_pp": -33.34,
+      "baseline_gap_count": 2,
+      "candidate_gap_count": 1
+    }
+  },
+  "secondary_all_candidate_rows": {
+    "candidate_n": 6,
+    "overall": {
+      "comprehension_score": { "mean": 80.17 },
+      "factual_recall": { "mean": 70.67 },
+      "applied_reasoning": { "mean": 75.33 }
+    },
+    "gap_rate": { "candidate": 66.67, "candidate_gap_count": 4 }
+  },
+  "closure_criteria_check": {
+    "target_cohort_lift_comprehension": "met_primary (+14.0 on n=3 matched)",
+    "confidence_comprehension_gap_reduction": "met_primary (-33.3 pp on n=3 matched)",
+    "non_target_regression": "not_measured_in_this_slice",
+    "recommendation": "Keep v2_low_literacy_checks for low-literacy cohorts; use unique experiment_id per batch to avoid mixed CSVs; scale n and max_turns before production claims."
+  }
+}

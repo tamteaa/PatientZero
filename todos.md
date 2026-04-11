@@ -15,15 +15,19 @@ The feedback loop is scaffolded end-to-end but the optimization step is stubbed.
 - [x] `POST /api/experiments/{id}/optimize` — accepts `metric_weights`, `seeding_mode`, `num_candidates`, `trials_per_candidate`, `worst_cases_k`
 - [x] Frontend: Optimize button on the Experiments page detail pane
 
-### Blocker — sim runner does NOT yet read the current target
+### Sim runner + current target (merged)
 
-The simulate route still calls `build_doctor_prompt` / `build_patient_prompt` from `core/agents/prompts.py` directly. This means new simulations are **not actually using** whatever prompt the optimizer writes. The loop is persisted but inert.
+- [x] **`SimulationService.create_and_start` loads the experiment’s `current_optimization_target`** and passes `prompts["doctor"]` / `prompts["patient"]` into `build_doctor_prompt` / `build_patient_prompt` as optional templates (same `{profile}`, `{scenario}`, … placeholders as `_DOCTOR` / `_PATIENT`). `policy_version` overlays still apply after formatting.
+- [x] **API simulate** requires a real `experiments.id`; optional `batch_id` for analysis/compare labels (`config_json.batch_id`). See `evaluations/feedback/RUNBOOK.md`.
 
-- [ ] **Wire `SimulationService.create_and_start` to read the experiment's current target.** Load `current_optimization_target_id`, fetch the target row, and pass its `prompts["doctor"]` / `prompts["patient"]` into the agent construction. If the target's templates are the ones in `prompts.py`, behavior is unchanged; if they were modified by optimize, behavior changes.
-- [ ] Decide how the template is rendered with per-run profile data. The stored template is a string; `build_doctor_prompt` currently does `.format(...)` with profile/scenario/style fields. Either:
-  - (a) store templates as format strings and keep `.format(...)` at sim-run time, OR
-  - (b) store fully-rendered prompts (no placeholders) and change the signature of `build_doctor_prompt` to take the template as a parameter.
-  (a) is simpler; (b) gives the optimizer more freedom to change structure. Pick (a) for now.
+### Manual Kimi feedback batches
+
+- [x] CLI `evaluations/feedback/run_feedback_cycle.py` — uses `--experiment-db-id` + `--batch-id`, respects experiment distributions, writes artifacts under `evaluations/feedback/artifacts/<batch_id>/`.
+- [x] Evidence write-up: `evaluations/feedback/RECOMMENDATIONS.md` (low-literacy n=10 A/B).
+
+### Remaining template / optimizer nuances
+
+- [ ] If DSPy produces templates **without** the same placeholders as `_DOCTOR`, rendering will fail — validate or add a fallback path when Optimize persists new targets.
 
 ### Next — replace the stub with DSPy
 

@@ -1,0 +1,102 @@
+{
+  "total_evaluations": 9,
+  "overall": {
+    "comprehension_score": {
+      "mean": 80.67,
+      "n": 9
+    },
+    "factual_recall": {
+      "mean": 68.33,
+      "n": 9
+    },
+    "applied_reasoning": {
+      "mean": 75.44,
+      "n": 9
+    },
+    "explanation_quality": {
+      "mean": 75.22,
+      "n": 9
+    },
+    "interaction_quality": {
+      "mean": 76.56,
+      "n": 9
+    }
+  },
+  "gap_analysis": {
+    "gap_rate": 66.7
+  },
+  "worst_combinations": [
+    {
+      "patient_literacy": "low",
+      "doctor_empathy": "high",
+      "doctor_verbosity": "moderate",
+      "scenario": "Basic Metabolic Panel (BMP) - Normal",
+      "mean_comprehension": 50.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "low",
+      "doctor_empathy": "moderate",
+      "doctor_verbosity": "thorough",
+      "scenario": "Liver Function Panel - Normal",
+      "mean_comprehension": 55.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "low",
+      "doctor_empathy": "moderate",
+      "doctor_verbosity": "terse",
+      "scenario": "Thyroid Panel - Normal",
+      "mean_comprehension": 80.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "moderate",
+      "doctor_empathy": "moderate",
+      "doctor_verbosity": "terse",
+      "scenario": "Hemoglobin A1c (HbA1c) - Normal",
+      "mean_comprehension": 85.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "high",
+      "doctor_empathy": "high",
+      "doctor_verbosity": "moderate",
+      "scenario": "Basic Metabolic Panel (BMP) - Normal",
+      "mean_comprehension": 88.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "moderate",
+      "doctor_empathy": "high",
+      "doctor_verbosity": "moderate",
+      "scenario": "Basic Metabolic Panel (BMP) - H",
+      "mean_comprehension": 88.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "moderate",
+      "doctor_empathy": "high",
+      "doctor_verbosity": "terse",
+      "scenario": "Lipid Panel - Normal",
+      "mean_comprehension": 92.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "moderate",
+      "doctor_empathy": "high",
+      "doctor_verbosity": "terse",
+      "scenario": "Liver Function Panel - Normal",
+      "mean_comprehension": 93.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "moderate",
+      "doctor_empathy": "low",
+      "doctor_verbosity": "terse",
+      "scenario": "Liver Function Panel - Normal",
+      "mean_comprehension": 95.0,
+      "n": 1
+    }
+  ]
+}

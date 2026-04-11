@@ -69,6 +69,7 @@ class SimulationRecord:
     duration_ms: float | None
     created_at: str
     completed_at: str | None
+    style: str | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)

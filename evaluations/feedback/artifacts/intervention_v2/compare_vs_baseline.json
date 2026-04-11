@@ -1,0 +1,61 @@
+{
+  "baseline_n": 3,
+  "candidate_n": 3,
+  "overall": {
+    "comprehension_score": {
+      "baseline": 64.33333333333333,
+      "candidate": 92.0,
+      "delta": 27.66666666666667
+    },
+    "factual_recall": {
+      "baseline": 41.666666666666664,
+      "candidate": 86.66666666666667,
+      "delta": 45.00000000000001
+    },
+    "applied_reasoning": {
+      "baseline": 45.666666666666664,
+      "candidate": 93.0,
+      "delta": 47.333333333333336
+    },
+    "explanation_quality": {
+      "baseline": 68.33333333333333,
+      "candidate": 81.33333333333333,
+      "delta": 13.0
+    },
+    "interaction_quality": {
+      "baseline": 65.0,
+      "candidate": 80.33333333333333,
+      "delta": 15.333333333333329
+    }
+  },
+  "low_literacy": {
+    "comprehension_score": {
+      "baseline": 52.5,
+      "candidate": null,
+      "delta": null,
+      "baseline_n": 2,
+      "candidate_n": 0
+    },
+    "factual_recall": {
+      "baseline": 20.0,
+      "candidate": null,
+      "delta": null,
+      "baseline_n": 2,
+      "candidate_n": 0
+    },
+    "applied_reasoning": {
+      "baseline": 27.5,
+      "candidate": null,
+      "delta": null,
+      "baseline_n": 2,
+      "candidate_n": 0
+    }
+  },
+  "gap_rate": {
+    "baseline": 66.66666666666666,
+    "candidate": 66.66666666666666,
+    "delta": 0.0,
+    "baseline_gap_count": 2,
+    "candidate_gap_count": 2
+  }
+}

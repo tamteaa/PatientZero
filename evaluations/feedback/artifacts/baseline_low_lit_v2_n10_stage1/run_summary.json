@@ -1,0 +1,13 @@
+{
+  "experiment_id": "baseline_low_lit_v2_n10_stage1",
+  "policy_version": "baseline",
+  "n_requested": 10,
+  "n_completed": 8,
+  "n_errored": 2,
+  "n_timed_out": 0,
+  "n_evaluated": 8,
+  "n_evaluation_failed": 0,
+  "overall_comprehension_mean": 79.57,
+  "overall_gap_rate": 70.5,
+  "artifacts_dir": "evaluations/feedback/artifacts/baseline_low_lit_v2_n10_stage1"
+}

@@ -92,6 +92,12 @@ class SimulateRequest(BaseModel):
     experiment_id: str
     model: str
     max_turns: int | None = Field(default=None, ge=1, le=50)
+    style: str = "clinical"
+    policy_version: str = "baseline"
+    batch_id: str | None = Field(
+        default=None,
+        description="Optional label for feedback-loop batches (analysis/compare); stored in config_json only.",
+    )
     # None or "random" → generate from StaticScenarioGenerator
     scenario_name: str | None = None
     # Optional trait constraints — None means sample from real distributions
@@ -125,7 +131,12 @@ def _sse_event(event_type: str, data) -> dict | None:
 
 @router.post("/simulate")
 async def simulate(request: SimulateRequest):
-    # Validate experiment exists and load its frozen distributions
+    if request.model not in AVAILABLE_MODELS:
+        raise HTTPException(status_code=400, detail="Unknown model")
+
+    if request.style not in EXPLANATION_STYLES:
+        raise HTTPException(status_code=400, detail=f"style must be one of {EXPLANATION_STYLES}")
+
     experiment = get_experiment(db, request.experiment_id)
     if not experiment:
         raise HTTPException(status_code=404, detail="Experiment not found")
@@ -165,7 +176,15 @@ async def simulate(request: SimulateRequest):
         )
 
     sim_id = simulation_service.create_and_start(
-        request.experiment_id, doctor, patient, scenario, request.model, max_turns=request.max_turns or 8,
+        request.experiment_id,
+        doctor,
+        patient,
+        scenario,
+        request.model,
+        style=request.style,
+        policy_version=request.policy_version,
+        batch_id=request.batch_id,
+        max_turns=request.max_turns or 8,
     )
     return {"simulation_id": sim_id}
 

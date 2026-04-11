@@ -1,0 +1,110 @@
+{
+  "total_evaluations": 16,
+  "overall": {
+    "comprehension_score": {
+      "mean": 80.56,
+      "n": 16
+    },
+    "factual_recall": {
+      "mean": 68.06,
+      "n": 16
+    },
+    "applied_reasoning": {
+      "mean": 75.31,
+      "n": 16
+    },
+    "explanation_quality": {
+      "mean": 74.31,
+      "n": 16
+    },
+    "interaction_quality": {
+      "mean": 75.12,
+      "n": 16
+    }
+  },
+  "gap_analysis": {
+    "gap_rate": 68.8
+  },
+  "worst_combinations": [
+    {
+      "patient_literacy": "low",
+      "doctor_empathy": "high",
+      "doctor_verbosity": "moderate",
+      "scenario": "Basic Metabolic Panel (BMP) - Normal",
+      "mean_comprehension": 50.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "low",
+      "doctor_empathy": "moderate",
+      "doctor_verbosity": "thorough",
+      "scenario": "Thyroid Panel - H",
+      "mean_comprehension": 55.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "low",
+      "doctor_empathy": "moderate",
+      "doctor_verbosity": "thorough",
+      "scenario": "Liver Function Panel - Normal",
+      "mean_comprehension": 55.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "low",
+      "doctor_empathy": "low",
+      "doctor_verbosity": "moderate",
+      "scenario": "Lipid Panel - H",
+      "mean_comprehension": 70.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "low",
+      "doctor_empathy": "moderate",
+      "doctor_verbosity": "thorough",
+      "scenario": "Hemoglobin A1c (HbA1c) - Normal",
+      "mean_comprehension": 78.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "low",
+      "doctor_empathy": "moderate",
+      "doctor_verbosity": "terse",
+      "scenario": "Thyroid Panel - Normal",
+      "mean_comprehension": 80.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "moderate",
+      "doctor_empathy": "moderate",
+      "doctor_verbosity": "terse",
+      "scenario": "Hemoglobin A1c (HbA1c) - Normal",
+      "mean_comprehension": 85.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "moderate",
+      "doctor_empathy": "moderate",
+      "doctor_verbosity": "moderate",
+      "scenario": "Basic Metabolic Panel (BMP) - L",
+      "mean_comprehension": 88.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "moderate",
+      "doctor_empathy": "moderate",
+      "doctor_verbosity": "moderate",
+      "scenario": "Thyroid Panel - Normal",
+      "mean_comprehension": 88.0,
+      "n": 1
+    },
+    {
+      "patient_literacy": "moderate",
+      "doctor_empathy": "low",
+      "doctor_verbosity": "terse",
+      "scenario": "Basic Metabolic Panel (BMP) - Normal",
+      "mean_comprehension": 88.0,
+      "n": 1
+    }
+  ]
+}

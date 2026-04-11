@@ -56,7 +56,8 @@ Every simulation belongs to an **Experiment**: a named container that snapshots 
                                             ▼
                           ┌──────────────────────────────┐
                           │       Feedback Loop          │
-                          │        (not yet built)       │
+                          │  OptimizationTarget + stub   │
+                          │  + manual Kimi batch runner  │
                           │                              │
                           │  Identify failure modes →    │
                           │  refine doctor prompt →      │

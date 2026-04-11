@@ -165,6 +165,11 @@ class Simulation:
             elif self.state == SimulationStatus.ERROR:
                 self.text_status = "Error"
                 fail_simulation(self.db, self.sim_id)
+            else:
+                # Cancelled or other exit while still RUNNING/PAUSED — avoid zombie `running` rows.
+                self.state = SimulationStatus.ERROR
+                self.text_status = "Error"
+                fail_simulation(self.db, self.sim_id)
         yield ("done", None)
 
     async def _stream_turn(

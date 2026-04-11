@@ -1,5 +1,5 @@
 """
-Analysis endpoint — aggregates evaluation scores across dimensions per plan.md §2:
+Analysis endpoint — aggregates evaluation scores across trait/scenario dimensions (see todos.md / architecture).
 
 Key questions answered:
   1. Which patient types are left behind? (literacy, anxiety, age breakdown)
@@ -141,6 +141,10 @@ def _fetch_rows() -> list[dict]:
             row["doctor_verbosity"]  = dt.get("verbosity")
             row["doctor_comp_check"] = dt.get("comprehension_checking")
             row["doctor_time_pressure"] = dt.get("time_pressure")
+            row["style"] = cfg.get("style")
+            row["policy_version"] = cfg.get("policy_version")
+            # Feedback-batch label for compare/export (legacy key: experiment_id in config_json)
+            row["experiment_id"] = cfg.get("batch_id") or cfg.get("experiment_id")
         except Exception:
             pass
         rows.append(row)
@@ -210,7 +214,10 @@ def _gap_analysis(rows: list[dict]) -> dict:
 @router.get("/analysis")
 def get_analysis():
     rows = _fetch_rows()
+    return _summary_from_rows(rows)
 
+
+def _summary_from_rows(rows: list[dict]) -> dict:
     empty = {
         "total_evaluations": 0,
         "overall": {},
@@ -221,6 +228,9 @@ def get_analysis():
         "by_doctor_verbosity": {},
         "by_doctor_comprehension_checking": {},
         "by_scenario": {},
+        "by_style": {},
+        "by_policy_version": {},
+        "by_experiment_id": {},
         "effect_sizes": {},
         "gap_analysis": {"total_with_gap": 0, "gap_rate": 0.0, "by_literacy": {}, "by_scenario": {}, "by_doctor_empathy": {}},
         "worst_combinations": [],
@@ -236,6 +246,9 @@ def get_analysis():
     verb_groups = _group_by(rows, lambda r: r.get("doctor_verbosity"))
     cc_groups   = _group_by(rows, lambda r: r.get("doctor_comp_check"))
     scen_groups = _group_by(rows, lambda r: r.get("scenario_name"))
+    style_groups = _group_by(rows, lambda r: r.get("style"))
+    policy_groups = _group_by(rows, lambda r: r.get("policy_version"))
+    experiment_groups = _group_by(rows, lambda r: r.get("experiment_id"))
 
     by_literacy   = {k: _score_stats(v) for k, v in lit_groups.items()}
     by_anxiety    = {k: _score_stats(v) for k, v in anx_groups.items()}
@@ -244,6 +257,9 @@ def get_analysis():
     by_verbosity  = {k: _score_stats(v) for k, v in verb_groups.items()}
     by_comp_check = {k: _score_stats(v) for k, v in cc_groups.items()}
     by_scenario   = {k: _score_stats(v) for k, v in scen_groups.items()}
+    by_style      = {k: _score_stats(v) for k, v in style_groups.items()}
+    by_policy     = {k: _score_stats(v) for k, v in policy_groups.items()}
+    by_experiment = {k: _score_stats(v) for k, v in experiment_groups.items()}
 
     # ── Effect sizes ─────────────────────────────────────────────────────────
     effect_sizes = {
@@ -299,6 +315,9 @@ def get_analysis():
         "by_doctor_verbosity": by_verbosity,
         "by_doctor_comprehension_checking": by_comp_check,
         "by_scenario": by_scenario,
+        "by_style": by_style,
+        "by_policy_version": by_policy,
+        "by_experiment_id": by_experiment,
         "effect_sizes": effect_sizes,
         "gap_analysis": _gap_analysis(rows),
         "worst_combinations": worst[:10],
@@ -317,6 +336,7 @@ def export_csv():
         "patient_literacy", "patient_anxiety", "patient_tendency",
         "patient_age", "patient_age_bucket", "patient_education",
         "doctor_empathy", "doctor_verbosity", "doctor_comp_check", "doctor_time_pressure",
+        "style", "policy_version", "experiment_id",
         "comprehension_score", "factual_recall", "applied_reasoning",
         "explanation_quality", "interaction_quality", "confidence_comprehension_gap",
     ]
@@ -338,3 +358,50 @@ def export_csv():
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=patientzero_analysis.csv"},
     )
+
+
+@router.get("/analysis/compare")
+def compare_analysis(
+    baseline_experiment_id: str,
+    candidate_experiment_id: str,
+):
+    rows = _fetch_rows()
+    baseline_rows = [r for r in rows if r.get("experiment_id") == baseline_experiment_id]
+    candidate_rows = [r for r in rows if r.get("experiment_id") == candidate_experiment_id]
+
+    baseline = _summary_from_rows(baseline_rows)
+    candidate = _summary_from_rows(candidate_rows)
+
+    def _mean(summary: dict, metric: str) -> float | None:
+        data = summary.get("overall", {}).get(metric, {})
+        return data.get("mean")
+
+    overall_deltas = {}
+    for metric in METRICS:
+        b = _mean(baseline, metric)
+        c = _mean(candidate, metric)
+        overall_deltas[metric] = {
+            "baseline": b,
+            "candidate": c,
+            "delta": round(c - b, 2) if b is not None and c is not None else None,
+        }
+
+    baseline_gap = baseline.get("gap_analysis", {}).get("gap_rate")
+    candidate_gap = candidate.get("gap_analysis", {}).get("gap_rate")
+
+    return {
+        "baseline_experiment_id": baseline_experiment_id,
+        "candidate_experiment_id": candidate_experiment_id,
+        "baseline_total_evaluations": baseline.get("total_evaluations", 0),
+        "candidate_total_evaluations": candidate.get("total_evaluations", 0),
+        "overall_metric_deltas": overall_deltas,
+        "gap_rate": {
+            "baseline": baseline_gap,
+            "candidate": candidate_gap,
+            "delta": round(candidate_gap - baseline_gap, 2)
+            if baseline_gap is not None and candidate_gap is not None
+            else None,
+        },
+        "baseline_worst_combinations": baseline.get("worst_combinations", [])[:5],
+        "candidate_worst_combinations": candidate.get("worst_combinations", [])[:5],
+    }

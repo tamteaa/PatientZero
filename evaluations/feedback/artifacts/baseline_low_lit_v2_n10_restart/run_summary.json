@@ -1,0 +1,13 @@
+{
+  "experiment_id": "baseline_low_lit_v2_n10_restart",
+  "policy_version": "baseline",
+  "n_requested": 10,
+  "n_completed": 10,
+  "n_errored": 0,
+  "n_timed_out": 0,
+  "n_evaluated": 10,
+  "n_evaluation_failed": 0,
+  "overall_comprehension_mean": 79.48,
+  "overall_gap_rate": 72.2,
+  "artifacts_dir": "evaluations/feedback/artifacts/baseline_low_lit_v2_n10_restart"
+}

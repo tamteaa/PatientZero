@@ -17,6 +17,10 @@ export interface SimulationConfig {
   scenario_name?: string;  // omit or "random" to generate
   model: string;
   max_turns?: number;
+  style?: string;
+  policy_version?: string;
+  /** Optional feedback-loop batch label for analysis/compare */
+  batch_id?: string;
   patient_literacy?: string;
   patient_anxiety?: string;
   doctor_empathy?: string;

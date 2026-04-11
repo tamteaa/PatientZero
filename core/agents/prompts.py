@@ -52,6 +52,24 @@ You are a medical professional explaining test results to a patient through conv
 - Address any misconceptions with accurate medical information
 - Only produce dialogue — no action narration, stage directions, or *asterisk actions*"""
 
+_POLICY_INSTRUCTIONS = {
+    "baseline": "",
+    "v2_low_literacy_checks": (
+        "## Feedback-Loop Policy Overrides\n"
+        "- Assume the patient may have low health literacy unless they clearly demonstrate advanced understanding.\n"
+        "- After every key explanation, ask a short teach-back question (e.g., 'Can you tell me in your own words what that means?').\n"
+        "- If the patient answer is incomplete or incorrect, restate using simpler language before moving on.\n"
+        "- End each response with one concrete next-step question to confirm understanding."
+    ),
+    "v3_anxiety_first": (
+        "## Feedback-Loop Policy Overrides\n"
+        "- Start each response with one empathetic sentence acknowledging uncertainty or concern.\n"
+        "- Keep responses to 2-4 short paragraphs and avoid dense information blocks.\n"
+        "- Prioritize immediate actionability: what to do now, what to watch for, when to seek care.\n"
+        "- Confirm emotional understanding as well as factual understanding."
+    ),
+}
+
 _PATIENT = """\
 You are a patient who has just received medical test results and is having them explained to you. Stay in character at all times.
 
@@ -115,15 +133,28 @@ def _format_profile(profile: AgentProfile) -> str:
     )
 
 
-def build_doctor_prompt(profile: AgentProfile, scenario: Scenario, style: str = "clinical") -> str:
+def build_doctor_prompt(
+    profile: AgentProfile,
+    scenario: Scenario,
+    style: str = "clinical",
+    policy_version: str = "baseline",
+    doctor_template: str | None = None,
+) -> str:
+    """Render doctor system prompt. If ``doctor_template`` is set (e.g. from an OptimizationTarget), use it instead of ``_DOCTOR``."""
     style_instructions = _STYLE_INSTRUCTIONS.get(style, _STYLE_INSTRUCTIONS["clinical"])
-    return _DOCTOR.format(
+    policy_instructions = _POLICY_INSTRUCTIONS.get(policy_version, _POLICY_INSTRUCTIONS["baseline"])
+    base = doctor_template or _DOCTOR
+    prompt = base.format(
         profile=_format_profile(profile),
         scenario=scenario.description,
         style=style.capitalize(),
         style_instructions=style_instructions,
     )
+    if policy_instructions:
+        prompt = f"{prompt}\n\n{policy_instructions}"
+    return prompt
 
 
-def build_patient_prompt(profile: AgentProfile) -> str:
-    return _PATIENT.format(profile=_format_profile(profile))
+def build_patient_prompt(profile: AgentProfile, patient_template: str | None = None) -> str:
+    base = patient_template or _PATIENT
+    return base.format(profile=_format_profile(profile))

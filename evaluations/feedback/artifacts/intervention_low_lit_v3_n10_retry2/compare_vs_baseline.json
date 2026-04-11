@@ -1,0 +1,55 @@
+{
+  "baseline_experiment_id": "baseline_low_lit_v2_n10_restart",
+  "candidate_experiment_id": "intervention_low_lit_v3_n10_retry2",
+  "cohort": "patient_literacy=low (forced); clinical style; kimi:kimi-k2.5 sim + judge",
+  "n_per_arm": 10,
+  "protocol_note": "Baseline batch used --sim-timeout-s 180 (historical run). Candidate used --sim-timeout-s 300 plus runner fixes for cancelled sims. For strictest A/B, rerun baseline with 300s and a new experiment_id.",
+  "metrics": {
+    "comprehension_score": {
+      "baseline_mean": 79.1,
+      "candidate_mean": 86.0,
+      "delta": 6.9,
+      "cohens_d": 0.812
+    },
+    "factual_recall": {
+      "baseline_mean": 68.4,
+      "candidate_mean": 77.5,
+      "delta": 9.1,
+      "cohens_d": 0.651
+    },
+    "applied_reasoning": {
+      "baseline_mean": 78.9,
+      "candidate_mean": 87.3,
+      "delta": 8.4,
+      "cohens_d": 1.12
+    },
+    "explanation_quality": {
+      "baseline_mean": 82.1,
+      "candidate_mean": 84.2,
+      "delta": 2.1,
+      "cohens_d": 0.233
+    },
+    "interaction_quality": {
+      "baseline_mean": 84.5,
+      "candidate_mean": 90.3,
+      "delta": 5.8,
+      "cohens_d": 0.968
+    }
+  },
+  "confidence_comprehension_gap": {
+    "baseline_gap_rate_pct": 80.0,
+    "baseline_gap_n": 8,
+    "candidate_gap_rate_pct": 60.0,
+    "candidate_gap_n": 6,
+    "delta_pp": -20.0
+  },
+  "source": "Per-experiment rows in analysis_experiment.csv (not full-DB analysis.json).",
+  "closure_vs_plan_md_section_3": {
+    "failure_identification": "Done via analysis + prior small-n runs.",
+    "diagnose_cause": "Qualitative review supported low-literacy + comprehension-check hypothesis.",
+    "refine_doctor_behavior": "Implemented v2_low_literacy_checks policy.",
+    "re_run": "Completed controlled n=10 low-literacy A/B after runner reliability fixes.",
+    "measure_gap_closure": "Documented in this file; medium effect on comprehension, large on applied reasoning.",
+    "iterate": "Optional: matched-timeout baseline rerun; mixed-cohort regression slice; anxiety policy A/B if failures cluster there."
+  }
+}
