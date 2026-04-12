@@ -1,0 +1,34 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install the wheel (built on host, copied in)
+COPY dist/*.whl /tmp/
+RUN pip install /tmp/patientzero-*.whl
+
+# 1. Verify core imports with only the base dependency (python-dotenv)
+RUN python -c "\
+import core; \
+from core.db.database import Database; \
+d = Database(':memory:'); d.init(); \
+print('PASS: core import + schema init')"
+
+# 2. Verify openai is NOT required for core
+RUN python -c "\
+from core.llm.factory import get_provider; \
+p = get_provider('mock'); \
+print('PASS: mock provider works without openai')"
+
+# 3. Install with all extras and verify backend imports
+RUN pip install "/tmp/$(ls /tmp/patientzero-*.whl | head -1 | xargs basename)[all]"
+RUN python -c "\
+from backend.api.main import app; \
+print('PASS: backend app imports')"
+
+# 4. Copy the full source and run the test suite against the installed package
+COPY . /src
+WORKDIR /src
+RUN pip install pytest pytest-asyncio httpx
+RUN python -m pytest core/tests/ backend/tests/ -v
+
+CMD ["echo", "All tests passed"]

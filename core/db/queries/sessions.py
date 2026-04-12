@@ -3,6 +3,8 @@ Legacy — chat route (/api/chat, /api/sessions) only. Do not migrate to
 `core/repositories/` without reviewing the chat path; the session/turn
 model predates experiments and has different lifecycle semantics.
 """
+from __future__ import annotations
+
 import uuid
 from core.db.database import Database
 from core.types import SessionRecord, TurnRecord

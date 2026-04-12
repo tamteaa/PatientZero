@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import random
@@ -31,6 +33,8 @@ class MockProvider(LLMProvider):
         rubric_keys = _JUDGE_SCORE_LINE.findall(system)
         if rubric_keys:
             return self._judge_json(rubric_keys)
+        if "prompt optimizer" in system.lower():
+            return self._feedback_json(messages)
         last_user = next(
             (m["content"] for m in reversed(messages) if m["role"] != "system"),
             "",
@@ -39,6 +43,18 @@ class MockProvider(LLMProvider):
             f"[mock:{model}] This is a mock response to: \"{last_user[:80]}\". "
             "Simulated output for testing."
         )
+
+    def _feedback_json(self, messages: list[dict]) -> str:
+        user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+        prompts = {}
+        for match in re.finditer(r"### (\w+)\n(.+?)(?=\n### |\n\n##)", user, re.DOTALL):
+            prompts[match.group(1)] = match.group(2).strip()
+        if not prompts:
+            prompts = {"doctor": "Doctor {empathy}", "patient": "Patient {literacy}"}
+        return json.dumps({
+            "prompts": prompts,
+            "rationale": "Mock feedback: prompts returned unchanged.",
+        })
 
     def _judge_json(self, dims: list[str]) -> str:
         scores = {dim: self._rng.randint(55, 95) for dim in dims}

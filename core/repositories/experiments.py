@@ -6,6 +6,7 @@ optimization targets all roll up to one. Cross-aggregate orchestration
 (e.g. "create an experiment AND seed its first optimization target")
 belongs in the service/facade layer, not here.
 """
+from __future__ import annotations
 
 import json
 import uuid

@@ -1,6 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from core.llm import factory as llm_factory
+from core.llm.mock import MockProvider
 from core.repositories import RepoSet
 from core.logger import SimulationLogger
 
@@ -42,8 +44,14 @@ def test_client(db):
     experiments_module.repos = test_repos
     analysis_module.repos = test_repos
 
+    # Seed the factory cache with a zero-delay mock so simulations
+    # complete fast enough for synchronous test polling.
+    llm_factory._providers["mock"] = MockProvider(delay=0)
+
     with TestClient(app) as client:
         yield client
+
+    llm_factory._providers.pop("mock", None)
 
     backend.api.dependencies.db = original["deps_db"]
     backend.api.dependencies.repos = original["deps_repos"]

@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import sqlite3
-from pathlib import Path
+from importlib import resources
 
 
 class Database:
@@ -17,8 +19,8 @@ class Database:
         return self._conn
 
     def init(self):
-        schema_path = Path(__file__).parent / "schema.sql"
-        self.conn.executescript(schema_path.read_text())
+        schema = resources.files("core.db").joinpath("schema.sql").read_text()
+        self.conn.executescript(schema)
         self.conn.commit()
 
     def execute(self, query: str, params: tuple = ()) -> sqlite3.Cursor:

@@ -1,4 +1,5 @@
 """Simulation endpoints — create, stream, control, inspect."""
+from __future__ import annotations
 
 import json
 

@@ -6,6 +6,8 @@ loop. Each row belongs to exactly one experiment and may have a parent
 target (forming a lineage).
 """
 
+from __future__ import annotations
+
 import json
 import uuid
 
