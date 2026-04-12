@@ -53,7 +53,7 @@ class SimulationLogger:
         exp_dir.mkdir(parents=True, exist_ok=True)
         path = exp_dir / f"{sim_id}.log"
         self._paths[sim_id] = path
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(f"=== Simulation {sim_id} ===\n")
             f.write(f"Experiment: {experiment_name} ({experiment_id})\n")
             f.write(f"Optimization target: {optimization_target_id}\n")
@@ -89,7 +89,7 @@ class SimulationLogger:
         path = self._path(sim_id)
         if path is None:
             return
-        with open(path, "a") as f:
+        with open(path, "a", encoding="utf-8") as f:
             f.write(f"\n### Turn {turn + 1} [{role}] {duration_ms:.0f}ms\n")
             f.write("-- input --\n")
             if not input_messages:
@@ -103,7 +103,7 @@ class SimulationLogger:
         path = self._path(sim_id)
         if path is None:
             return
-        with open(path, "a") as f:
+        with open(path, "a", encoding="utf-8") as f:
             f.write("\n──── Evaluation ────\n")
             f.write(f"Model: {getattr(judge_result, 'model', '?')}\n")
             scores = getattr(judge_result, "scores", {}) or {}
@@ -116,7 +116,7 @@ class SimulationLogger:
         path = self._path(sim_id)
         if path is None:
             return
-        with open(path, "a") as f:
+        with open(path, "a", encoding="utf-8") as f:
             f.write("\n──── Final ────\n")
             f.write(f"State: {state}\n")
             f.write(f"Duration: {duration_ms:.0f}ms\n")
