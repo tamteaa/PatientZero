@@ -19,8 +19,8 @@ jobs:
 
       - name: Build package
         run: |
-          uv pip install build --system
-          python -m build
+          uv sync --extra dev
+          uv run python -m build
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
