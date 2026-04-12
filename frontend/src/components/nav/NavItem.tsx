@@ -15,7 +15,7 @@ export function NavItem({ to, icon: Icon, label, external }: NavItemProps) {
         href={to}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-accent-foreground"
       >
         <Icon className="h-4 w-4 shrink-0" />
         <span className="truncate">{label}</span>
@@ -27,7 +27,7 @@ export function NavItem({ to, icon: Icon, label, external }: NavItemProps) {
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `flex items-center gap-2 rounded-md px-3 py-2 text-sm ${
+        `flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] ${
           isActive
             ? 'bg-accent text-accent-foreground font-medium'
             : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'

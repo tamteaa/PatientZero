@@ -194,7 +194,7 @@ export function SimulationDetailPage() {
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Top bar */}
       <div className="border-b border-border bg-muted/20 px-4 py-2">
-        <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate('/simulations')}>
+        <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => navigate('/experiments')}>
           <ArrowLeft className="h-3.5 w-3.5" /> Back
         </Button>
       </div>

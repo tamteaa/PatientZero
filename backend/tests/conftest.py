@@ -1,29 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from core.db.database import Database
-from core.db.queries.experiments import create_experiment
-from core.llm.mock import MockProvider
-from core.services.logger import SimulationLogger
-from core.services.simulation import SimulationService
-
-
-@pytest.fixture
-def db(tmp_path):
-    test_db = Database(str(tmp_path / "test.db"))
-    test_db.init()
-    yield test_db
-    test_db.close()
-
-
-@pytest.fixture
-def experiment(db):
-    return create_experiment(db, name="test-exp")
-
-
-@pytest.fixture
-def mock_provider():
-    return MockProvider(delay=0)
+from core.repositories import RepoSet
+from core.logger import SimulationLogger
 
 
 @pytest.fixture
@@ -36,31 +15,43 @@ def test_client(db):
     import backend.api.routes.experiments as experiments_module
     import backend.api.routes.analysis as analysis_module
 
-    original_deps_db = backend.api.dependencies.db
-    original_main_db = main_module.db
-    original_chat_db = chat_module.db
-    original_sim_db = simulate_module.db
-    original_sim_service = simulate_module.simulation_service
-    original_exp_db = experiments_module.db
-    original_analysis_db = analysis_module.db
+    original = {
+        "deps_db": backend.api.dependencies.db,
+        "deps_repos": backend.api.dependencies.repos,
+        "deps_logger": backend.api.dependencies.logger,
+        "main_db": main_module.db,
+        "main_repos": main_module.repos,
+        "chat_db": chat_module.db,
+        "simulate_repos": simulate_module.repos,
+        "simulate_logger": simulate_module.logger,
+        "experiments_repos": experiments_module.repos,
+        "analysis_repos": analysis_module.repos,
+    }
 
-    test_service = SimulationService(db, SimulationLogger())
+    test_repos = RepoSet.for_db(db)
+    test_logger = SimulationLogger()
 
     backend.api.dependencies.db = db
+    backend.api.dependencies.repos = test_repos
+    backend.api.dependencies.logger = test_logger
     main_module.db = db
+    main_module.repos = test_repos
     chat_module.db = db
-    simulate_module.db = db
-    simulate_module.simulation_service = test_service
-    experiments_module.db = db
-    analysis_module.db = db
+    simulate_module.repos = test_repos
+    simulate_module.logger = test_logger
+    experiments_module.repos = test_repos
+    analysis_module.repos = test_repos
 
     with TestClient(app) as client:
         yield client
 
-    backend.api.dependencies.db = original_deps_db
-    main_module.db = original_main_db
-    chat_module.db = original_chat_db
-    simulate_module.db = original_sim_db
-    simulate_module.simulation_service = original_sim_service
-    experiments_module.db = original_exp_db
-    analysis_module.db = original_analysis_db
+    backend.api.dependencies.db = original["deps_db"]
+    backend.api.dependencies.repos = original["deps_repos"]
+    backend.api.dependencies.logger = original["deps_logger"]
+    main_module.db = original["main_db"]
+    main_module.repos = original["main_repos"]
+    chat_module.db = original["chat_db"]
+    simulate_module.repos = original["simulate_repos"]
+    simulate_module.logger = original["simulate_logger"]
+    experiments_module.repos = original["experiments_repos"]
+    analysis_module.repos = original["analysis_repos"]

@@ -27,6 +27,14 @@ export interface SimulationConfig {
   doctor_verbosity?: string;
 }
 
+export interface ExperimentCounts {
+  total: number;
+  completed: number;
+  running: number;
+  error: number;
+  evaluated: number;
+}
+
 export interface Experiment {
   id: string;
   name: string;
@@ -34,12 +42,10 @@ export interface Experiment {
   current_optimization_target_id: string | null;
   /** Integer seed for reproducible profile draws; null = unseeded (global random). */
   sampling_seed: number | null;
-}
-
-export interface ExperimentDetail extends Experiment {
   sample_draw_index: number;
   patient_distribution: PatientDistribution;
   doctor_distribution: DoctorDistribution;
+  counts: ExperimentCounts;
 }
 
 // ── Distributions ────────────────────────────────────────────────────────────
@@ -114,11 +120,26 @@ export interface CandidateScoreSummary {
   trial_count: number;
 }
 
+export interface WorstCaseInfo {
+  simulation_id: string;
+  scenario_name: string;
+  patient_traits: Record<string, string>;
+  scores: Record<string, number>;
+  judge_justification: string;
+}
+
+export interface FeedbackSignalInfo {
+  simulations_considered: number;
+  mean_scores: Record<string, number>;
+  worst_cases: WorstCaseInfo[];
+}
+
 export interface OptimizationResult {
   new_target: OptimizationTarget;
   baseline: CandidateScoreSummary;
   candidates: CandidateScoreSummary[];
   improvement: number;
+  signal: FeedbackSignalInfo;
 }
 
 export interface SimulationMessage {

@@ -16,11 +16,8 @@ CREATE TABLE IF NOT EXISTS turns (
 
 CREATE TABLE IF NOT EXISTS experiments (
     id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    patient_distribution_json TEXT NOT NULL,
-    doctor_distribution_json TEXT NOT NULL,
+    config_json TEXT NOT NULL,
     current_optimization_target_id TEXT,
-    sampling_seed INTEGER,
     sample_draw_index INTEGER NOT NULL DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
 );
@@ -39,15 +36,12 @@ CREATE INDEX IF NOT EXISTS idx_opt_targets_experiment ON optimization_targets(ex
 CREATE TABLE IF NOT EXISTS simulations (
     id TEXT PRIMARY KEY,
     experiment_id TEXT NOT NULL REFERENCES experiments(id) ON DELETE CASCADE,
-    persona_name TEXT NOT NULL,
-    scenario_name TEXT NOT NULL,
-    model TEXT NOT NULL,
-    state TEXT NOT NULL DEFAULT 'running',
+    optimization_target_id TEXT REFERENCES optimization_targets(id),
     config_json TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'running',
     duration_ms REAL,
     created_at TEXT DEFAULT (datetime('now')),
-    completed_at TEXT,
-    optimization_target_id TEXT REFERENCES optimization_targets(id)
+    completed_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_simulations_experiment ON simulations(experiment_id);
@@ -67,6 +61,9 @@ CREATE TABLE IF NOT EXISTS simulation_turns (
 CREATE TABLE IF NOT EXISTS evaluations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     simulation_id TEXT NOT NULL REFERENCES simulations(id),
+    experiment_id TEXT REFERENCES experiments(id),
     judge_results_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_evaluations_experiment ON evaluations(experiment_id);

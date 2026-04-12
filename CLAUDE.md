@@ -11,7 +11,7 @@ All commands run from project root (`project/`), not `backend/`.
 ```bash
 uv sync                                              # install python deps
 uv run uvicorn backend.api.main:app --reload          # run backend
-uv run python -m pytest backend/tests/ -v             # run tests
+uv run python -m pytest core/tests/ backend/tests/ -v # run tests
 uv run python -m evaluations.judge.run [--model M]    # run judge evals
 cd frontend && npm install && npm run dev              # run frontend (port 5173)
 ```
@@ -43,4 +43,8 @@ frontend/       # React 19 + Vite + TS, Tailwind + shadcn/ui
 
 ## Testing
 
-Tests in `backend/tests/`. All use `MockProvider(delay=0)`. Fixtures in `conftest.py`.
+Tests split by concern:
+- `core/tests/` — domain logic (agents, analysis, db, feedback, generators, llm, simulation). Mirrors `core/` layout.
+- `backend/tests/api/` — FastAPI route tests only.
+
+All use `MockProvider(delay=0)`. Shared fixtures (`db`, `experiment`, `mock_provider`) live in project-root `conftest.py`. The `test_client` fixture lives in `backend/tests/conftest.py`.

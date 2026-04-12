@@ -2,14 +2,11 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import { ErrorProvider } from '@/contexts/ErrorContext';
 import { AppLayout } from '@/layouts/AppLayout';
-import { DashboardPage } from '@/pages/DashboardPage';
-import { SimulationsPage } from '@/pages/SimulationsPage';
 import { SimulationDetailPage } from '@/pages/SimulationDetailPage';
-import { JudgePage } from '@/pages/JudgePage';
 import { Chat } from '@/pages/Chat';
-import { AnalysisPage } from '@/pages/AnalysisPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { ExperimentsPage } from '@/pages/ExperimentsPage';
+import { AgentPage } from '@/pages/agents/AgentPage';
 
 
 function App() {
@@ -17,18 +14,17 @@ function App() {
     <ErrorProvider>
       <Routes>
         <Route element={<AppLayout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="simulations" element={<SimulationsPage />} />
+          <Route index element={<Navigate to="/experiments" replace />} />
           <Route path="simulations/:simId" element={<SimulationDetailPage />} />
           <Route path="chat" element={<Chat />} />
-          <Route path="judge" element={<JudgePage />} />
-          <Route path="analysis" element={<AnalysisPage />} />
           <Route path="experiments" element={<ExperimentsPage />} />
+          <Route path="agents/doctor" element={<AgentPage agent="doctor" />} />
+          <Route path="agents/patient" element={<AgentPage agent="patient" />} />
+          <Route path="agents/judge" element={<AgentPage agent="judge" />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/experiments" replace />} />
       </Routes>
       <Toaster />
     </ErrorProvider>

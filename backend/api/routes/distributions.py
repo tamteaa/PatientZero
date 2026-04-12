@@ -1,21 +1,18 @@
-from dataclasses import asdict
+from fastapi import APIRouter, HTTPException
 
-from fastapi import APIRouter
-
-from core.config.doctor_distribution import US_BASELINE_DOCTOR
-from core.config.patient_distribution import AGE_BUCKET_RANGES, US_ADULT_BASELINE
+from backend.api.dependencies import repos
+from core.distribution import distribution_to_dict
 
 router = APIRouter()
 
 
-@router.get("/distributions/patient")
-def get_patient_distribution():
-    return {
-        "distribution": asdict(US_ADULT_BASELINE),
-        "age_bucket_ranges": AGE_BUCKET_RANGES,
-    }
-
-
-@router.get("/distributions/doctor")
-def get_doctor_distribution():
-    return {"distribution": asdict(US_BASELINE_DOCTOR)}
+@router.get("/experiments/{exp_id}/distributions/{agent_name}")
+def get_agent_distribution(exp_id: str, agent_name: str):
+    experiment = repos.experiments.get(exp_id)
+    if experiment is None:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    try:
+        agent = experiment.config.agent(agent_name)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Agent {agent_name!r} not found in experiment")
+    return {"distribution": distribution_to_dict(agent.distribution)}

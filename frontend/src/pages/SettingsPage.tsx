@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useAtom } from 'jotai';
-import { Header } from '@/components/common/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { getSettings } from '@/api/sessions';
 import { appSettingsAtom } from '@/atoms/model';
@@ -13,13 +12,11 @@ export function SettingsPage() {
   }, []);
 
   return (
-    <>
-      <Header title="Settings" />
-      <div className="flex-1 p-6 max-w-2xl">
-        <Card>
-          <CardContent className="py-4 space-y-3">
+    <div className="flex-1 p-4 max-w-2xl">
+        <Card size="sm">
+          <CardContent className="space-y-3">
             {settings ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex flex-col">
                     <span className="font-medium">Max concurrent simulations</span>
@@ -50,6 +47,5 @@ export function SettingsPage() {
           </CardContent>
         </Card>
       </div>
-    </>
   );
 }

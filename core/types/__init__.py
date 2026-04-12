@@ -1,5 +1,3 @@
-from core.types.profile import AgentProfile
-from core.types.scenario import Scenario
 from core.types.enums import Role
 from core.types.message import Message
 from core.types.transcript import Transcript
@@ -7,36 +5,26 @@ from core.types.events import TurnStartEvent, TurnEndEvent
 from core.types.trace import AgentStep, AgentTrace
 from core.types.simulation import SimulationStatus
 from core.types.judge_result import JudgeResult
+from core.types.analysis import CoverageReport
+from core.types.settings import AppSettings
 from core.types.records import (
-    SessionRecord,
-    TurnRecord,
+    JudgeConfig,
+    ExperimentConfig,
+    SimulationConfig,
     ExperimentRecord,
     SimulationRecord,
     SimulationTurnRecord,
     EvaluationRecord,
-)
-from core.types.settings import AppSettings
-from core.types.distribution import (
-    Distribution,
-    ConditionalDistribution,
-    PatientDistribution,
-    DoctorDistribution,
+    SessionRecord,
+    TurnRecord,
 )
 from core.types.feedback import (
-    SeedingMode,
-    OptimizationMetric,
-    OptimizationConfig,
     OptimizationTarget,
-    FailureCase,
-    FeedbackSignal,
-    OptimizationRequest,
-    CandidateScore,
+    FeedbackTrace,
     OptimizationResult,
 )
 
 __all__ = [
-    "AgentProfile",
-    "Scenario",
     "Role",
     "Message",
     "Transcript",
@@ -45,25 +33,19 @@ __all__ = [
     "AgentStep",
     "AgentTrace",
     "SimulationStatus",
-    "SessionRecord",
-    "TurnRecord",
+    "JudgeResult",
+    "CoverageReport",
+    "AppSettings",
+    "JudgeConfig",
+    "ExperimentConfig",
+    "SimulationConfig",
     "ExperimentRecord",
     "SimulationRecord",
     "SimulationTurnRecord",
     "EvaluationRecord",
-    "JudgeResult",
-    "AppSettings",
-    "Distribution",
-    "ConditionalDistribution",
-    "PatientDistribution",
-    "DoctorDistribution",
-    "SeedingMode",
-    "OptimizationMetric",
-    "OptimizationConfig",
+    "SessionRecord",
+    "TurnRecord",
     "OptimizationTarget",
-    "FailureCase",
-    "FeedbackSignal",
-    "OptimizationRequest",
-    "CandidateScore",
+    "FeedbackTrace",
     "OptimizationResult",
 ]

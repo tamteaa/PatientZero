@@ -6,7 +6,6 @@ import type {
   DoctorDistributionResponse,
   Evaluation,
   Experiment,
-  ExperimentDetail,
   OptimizationTarget,
   OptimizationResult,
   OptimizeRequest,
@@ -17,7 +16,13 @@ import type {
   SimulationRole,
   SimulationSummary,
 } from '@/types/simulation';
+import type { AgentsConfig } from '@/types/agents';
 import { client, API_BASE } from './client';
+
+export async function getAgentsConfig(): Promise<AgentsConfig> {
+  const { data } = await client.get('/agents/config');
+  return data;
+}
 
 // ── Sessions ────────────────────────────────────────────────────────────────
 
@@ -69,11 +74,6 @@ export async function createExperiment(name: string): Promise<Experiment> {
   return data;
 }
 
-export async function getExperiment(id: string): Promise<ExperimentDetail> {
-  const { data } = await client.get(`/experiments/${id}`);
-  return data;
-}
-
 export async function deleteExperiment(id: string): Promise<void> {
   await client.delete(`/experiments/${id}`);
 }
@@ -86,6 +86,21 @@ export async function getExperimentCoverage(
   return data;
 }
 
+export async function listExperimentSimulations(experimentId: string): Promise<SimulationSummary[]> {
+  const { data } = await client.get(`/experiments/${experimentId}/simulations`);
+  return data;
+}
+
+export async function listExperimentEvaluations(experimentId: string): Promise<Evaluation[]> {
+  const { data } = await client.get(`/experiments/${experimentId}/evaluations`);
+  return data;
+}
+
+export async function getExperimentAnalysis(experimentId: string): Promise<AnalysisResult> {
+  const { data } = await client.get(`/experiments/${experimentId}/analysis`);
+  return data;
+}
+
 export interface PatchExperimentRequest {
   sampling_seed?: number | null;
   reset_sample_draw_index?: boolean;
@@ -94,7 +109,7 @@ export interface PatchExperimentRequest {
 export async function patchExperiment(
   id: string,
   body: PatchExperimentRequest,
-): Promise<ExperimentDetail> {
+): Promise<Experiment> {
   const { data } = await client.patch(`/experiments/${id}`, body);
   return data;
 }
@@ -115,7 +130,7 @@ export async function listOptimizationTargets(experimentId: string): Promise<Opt
 export async function setCurrentOptimizationTarget(
   experimentId: string,
   optimizationTargetId: string,
-): Promise<ExperimentDetail> {
+): Promise<Experiment> {
   const { data } = await client.post(`/experiments/${experimentId}/optimization-target/current`, {
     optimization_target_id: optimizationTargetId,
   });
@@ -155,11 +170,8 @@ export async function listStyles(): Promise<string[]> {
 }
 
 // ── Simulations ─────────────────────────────────────────────────────────────
-
-export async function listSimulations(): Promise<SimulationSummary[]> {
-  const { data } = await client.get('/simulations');
-  return data;
-}
+// NOTE: the unscoped list endpoints (GET /simulations, GET /evaluations) have
+// been removed. Use listExperimentSimulations/listExperimentEvaluations above.
 
 export async function getSimulation(id: string): Promise<SimulationDetail> {
   const { data } = await client.get(`/simulations/${id}`);
@@ -189,11 +201,6 @@ export async function evaluateSimulation(id: string, model: string): Promise<Eva
 
 export async function getSimulationEvaluation(id: string): Promise<Evaluation | null> {
   const { data } = await client.get(`/simulations/${id}/evaluation`);
-  return data;
-}
-
-export async function listEvaluations(): Promise<Evaluation[]> {
-  const { data } = await client.get('/evaluations');
   return data;
 }
 

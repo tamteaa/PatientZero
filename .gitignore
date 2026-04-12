@@ -6,6 +6,8 @@ dist/
 build/
 *.egg
 
+.auriga
+
 # Virtual environments
 .venv/
 venv/
