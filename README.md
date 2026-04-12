@@ -1,61 +1,138 @@
 # PatientZero
 
-Explaining Health: How AI Explanation Styles and Interaction Modalities Affect User Comprehension of Medical Information
+[![CI](https://github.com/tamteaa/PatientZero/actions/workflows/ci.yml/badge.svg)](https://github.com/tamteaa/PatientZero/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/patientzero)](https://pypi.org/project/patientzero/)
+[![Python](https://img.shields.io/pypi/pyversions/patientzero)](https://pypi.org/project/patientzero/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Overview
+A simulation framework that uses LLM-powered agents to model doctor-patient interactions around medical test results and evaluate patient comprehension. A **DoctorAgent** explains, a **PatientAgent** responds, and a **JudgeAgent** scores comprehension.
 
-A simulation system that uses LLM-powered agents to simulate doctor-patient interactions around medical test results and evaluate patient comprehension.
+## Install
 
-## Tech Stack
-
-- **Frontend**: React + Vite + TypeScript, Tailwind CSS, shadcn/ui
-- **Backend**: Python, FastAPI, SQLite
-- **LLM**: Abstracted provider layer (Mock, OpenAI, Claude, Local)
-
-## Project Structure
-
-```
-PatientZero/
-├── core/              # Domain logic (imported by the backend)
-├── frontend/          # React app
-├── backend/           # FastAPI HTTP layer
-└── report.txt         # Research report
+```bash
+pip install patientzero            # core only
+pip install patientzero[all]       # core + OpenAI provider + backend
+pip install patientzero[backend]   # core + FastAPI backend
+pip install patientzero[openai]    # core + OpenAI/Kimi provider
 ```
 
-## Prerequisites
+Requires Python 3.11+.
 
-- Python 3.12+
-- Node.js 20+
-- [uv](https://docs.astral.sh/uv/) (Python package manager)
+## Quick start
 
-## Quick Start
+```python
+import asyncio
+from core import Agent, Distribution, Experiment
+from core.db.database import Database
+from core.repositories import RepoSet
+from core.simulation import Simulation
+from core.types import ExperimentConfig, JudgeConfig
 
-1. Clone the repo:
+db = Database(":memory:")
+db.init()
+repos = RepoSet.for_db(db)
+
+cfg = ExperimentConfig(
+    name="demo",
+    agents=(
+        Agent(
+            "doctor",
+            "You are a doctor explaining test results. Be {empathy}.",
+            Distribution(empathy={"empathetic": 0.5, "clinical": 0.5}),
+        ),
+        Agent(
+            "patient",
+            "You are a patient with {literacy} health literacy.",
+            Distribution(literacy={"low": 0.5, "high": 0.5}),
+        ),
+    ),
+    judge=JudgeConfig(
+        rubric={"clarity": "How clear was the explanation?"},
+        instructions="Evaluate the interaction.",
+        model=None,
+    ),
+    model="openai:gpt-4o",  # or "mock:default" for testing
+)
+exp = Experiment(cfg, repos).record
+
+async def run():
+    sim = Simulation.create(
+        exp,
+        {"doctor": {"empathy": "empathetic"}, "patient": {"literacy": "low"}},
+        repos,
+        model="openai:gpt-4o",
+        max_turns=4,
+    )
+    await sim.run()
+    for step in sim.trace.steps:
+        print(f"[{step.agent_type}] {step.output[:100]}")
+
+asyncio.run(run())
+db.close()
+```
+
+## Development setup
+
 ```bash
 git clone https://github.com/tamteaa/PatientZero.git
 cd PatientZero
+cp .env.example .env       # configure API keys
+uv sync --extra dev --extra backend
 ```
 
-2. Set up environment:
+**Run the backend:**
 ```bash
-cp .env.example .env
-```
-
-3. Install Python deps and start the backend (from the repo root so `core` imports resolve):
-```bash
-uv sync
 uv run uvicorn backend.api.main:app --reload
 ```
 
-4. Start the frontend:
+**Run the frontend:**
 ```bash
-cd frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev
 ```
 
-5. Open http://localhost:5173
+Open http://localhost:5173.
+
+**Run tests:**
+```bash
+uv run python -m pytest core/tests/ backend/tests/ -v
+```
+
+## Project structure
+
+```
+core/           # Domain logic — agents, simulation, LLM providers, DB
+  agents/       # DoctorAgent, PatientAgent, JudgeAgent
+  llm/          # LLMProvider ABC + mock, OpenAI, Claude CLI, local providers
+  simulation.py # Simulation state machine (run/step/pause/resume/stop)
+  config/       # Settings, personas, scenarios
+  db/           # SQLite (WAL mode), schema, queries
+  types/        # Dataclasses and enums
+backend/        # FastAPI routes, SSE streaming
+evaluations/    # Judge evaluation harness
+frontend/       # React 19 + Vite + TypeScript, Tailwind + shadcn/ui
+```
+
+## LLM providers
+
+Models use `"provider:model"` format:
+
+| Provider | Example | Notes |
+|----------|---------|-------|
+| `mock` | `mock:default` | Deterministic responses for testing |
+| `openai` | `openai:gpt-4o` | Requires `OPENAI_API_KEY` |
+| `kimi` | `kimi:kimi-k2.5` | Requires `KIMI_API_KEY` |
+| `claude` | `claude:claude-sonnet-4-20250514` | Via Claude CLI |
+| `local` | `local:llama3` | Any OpenAI-compatible local server |
+
+## CI/CD
+
+- **CI** runs on every push and PR: tests across Ubuntu, macOS, and Windows on Python 3.11, 3.12, and 3.13.
+- **Publish** triggers on GitHub release creation, pushing to PyPI via trusted publishing.
+
+## Authors
+
+Surya Mani, Aaron Tamte, Lile Zhang
 
 ## License
 
-MIT
+[MIT](LICENSE)
