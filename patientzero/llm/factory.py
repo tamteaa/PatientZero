@@ -3,6 +3,7 @@ import os
 from patientzero.llm.base import LLMProvider
 from patientzero.llm.claude_cli_provider import ClaudeCLIProvider
 from patientzero.llm.mock import MockProvider
+from patientzero.llm.openai_provider import OpenAIProvider
 
 
 _providers: dict[str, LLMProvider] = {}
@@ -16,12 +17,10 @@ def get_provider(provider_name: str) -> LLMProvider:
         case "mock":
             _providers[provider_name] = MockProvider()
         case "openai":
-            from patientzero.llm.openai_provider import OpenAIProvider
             _providers[provider_name] = OpenAIProvider(
                 api_key=os.environ["OPENAI_API_KEY"],
             )
         case "kimi":
-            from patientzero.llm.openai_provider import OpenAIProvider
             _providers[provider_name] = OpenAIProvider(
                 api_key=os.environ["KIMI_API_KEY"],
                 base_url="https://api.kimi.com/coding/v1",
@@ -33,7 +32,6 @@ def get_provider(provider_name: str) -> LLMProvider:
         case "claude":
             _providers[provider_name] = ClaudeCLIProvider()
         case "local":
-            from patientzero.llm.openai_provider import OpenAIProvider
             _providers[provider_name] = OpenAIProvider(
                 api_key="local",
                 base_url=os.environ.get("LOCAL_LLM_URL", "http://localhost:11434") + "/v1",

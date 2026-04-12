@@ -10,10 +10,8 @@ A simulation framework that uses LLM-powered agents to model doctor-patient inte
 ## Install
 
 ```bash
-pip install patientzero            # core only
-pip install patientzero[all]       # core + OpenAI provider + backend
-pip install patientzero[backend]   # core + FastAPI backend
-pip install patientzero[openai]    # core + OpenAI/Kimi provider
+pip install patientzero            # core + OpenAI provider
+pip install patientzero[backend]   # + FastAPI backend
 ```
 
 Requires Python 3.11+.
