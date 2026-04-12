@@ -97,21 +97,6 @@ Open http://localhost:5173.
 uv run python -m pytest core/tests/ backend/tests/ -v
 ```
 
-## Project structure
-
-```
-core/           # Domain logic — agents, simulation, LLM providers, DB
-  agents/       # DoctorAgent, PatientAgent, JudgeAgent
-  llm/          # LLMProvider ABC + mock, OpenAI, Claude CLI, local providers
-  simulation.py # Simulation state machine (run/step/pause/resume/stop)
-  config/       # Settings, personas, scenarios
-  db/           # SQLite (WAL mode), schema, queries
-  types/        # Dataclasses and enums
-backend/        # FastAPI routes, SSE streaming
-evaluations/    # Judge evaluation harness
-frontend/       # React 19 + Vite + TypeScript, Tailwind + shadcn/ui
-```
-
 ## LLM providers
 
 Models use `"provider:model"` format:
