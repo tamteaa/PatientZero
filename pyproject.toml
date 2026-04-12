@@ -43,5 +43,5 @@ dev = [
 all = ["patientzero[openai,backend]"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["core", "backend", "evaluations"]
+packages = ["patientzero", "backend", "evaluations"]
 exclude = ["**/tests/**", "**/__pycache__"]

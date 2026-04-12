@@ -39,7 +39,7 @@ construction, sampled in causal order.
 Constructing a distribution:
 
 ```python
-from core.distribution import Distribution, Conditional
+from patientzero.distribution import Distribution, Conditional
 
 patient = Distribution(
     age={"young": 0.3, "old": 0.7},
@@ -71,7 +71,7 @@ Key methods: `sample()`, `marginal(trait)`, `cells(*traits)`, `replace()`,
 `core/agent.py` — binds a name, prompt template, and distribution together.
 
 ```python
-from core.agent import Agent
+from patientzero.agent import Agent
 
 doctor = Agent(
     name="doctor",

@@ -29,6 +29,6 @@ print('PASS: backend app imports')"
 COPY . /src
 WORKDIR /src
 RUN pip install pytest pytest-asyncio httpx
-RUN python -m pytest core/tests/ backend/tests/ -v
+RUN python -m pytest patientzero/tests/ backend/tests/ -v
 
 CMD ["echo", "All tests passed"]

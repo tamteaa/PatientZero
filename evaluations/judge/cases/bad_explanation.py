@@ -1,5 +1,5 @@
 """Doctor gives a vague, jargon-heavy explanation with no structure. Patient is lost."""
-from core.types import Message, Transcript
+from patientzero.types import Message, Transcript
 
 LABEL = "Lipid panel — bad doctor explanation"
 EXPECTED = {

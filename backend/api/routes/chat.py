@@ -5,8 +5,8 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from backend.api.dependencies import db
-from core.config.settings import AVAILABLE_MODELS
-from core.db.queries.sessions import (
+from patientzero.config.settings import AVAILABLE_MODELS
+from patientzero.db.queries.sessions import (
     create_session,
     create_turn,
     delete_session,
@@ -17,7 +17,7 @@ from core.db.queries.sessions import (
     update_session_model,
     update_session_title,
 )
-from core.llm.factory import parse_provider_model
+from patientzero.llm.factory import parse_provider_model
 
 router = APIRouter()
 

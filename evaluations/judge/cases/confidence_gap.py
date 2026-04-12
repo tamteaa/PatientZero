@@ -1,5 +1,5 @@
 """Patient sounds confident but reveals incorrect understanding. Doctor doesn't catch it."""
-from core.types import Message, Transcript
+from patientzero.types import Message, Transcript
 
 LABEL = "Thyroid — confident but wrong (confidence-comprehension gap)"
 EXPECTED = {

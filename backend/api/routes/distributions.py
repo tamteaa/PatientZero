@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from backend.api.dependencies import repos
-from core.distribution import distribution_to_dict
+from patientzero.distribution import distribution_to_dict
 
 router = APIRouter()
 

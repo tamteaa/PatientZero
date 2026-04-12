@@ -8,10 +8,10 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from backend.api.dependencies import logger, repos
-from core.config.settings import APP_SETTINGS, AVAILABLE_MODELS
-from core.judge import Judge
-from core.simulation import Simulation
-from core.types import Message, Transcript
+from patientzero.config.settings import APP_SETTINGS, AVAILABLE_MODELS
+from patientzero.judge import Judge
+from patientzero.simulation import Simulation
+from patientzero.types import Message, Transcript
 
 router = APIRouter()
 

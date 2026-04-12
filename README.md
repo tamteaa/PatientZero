@@ -22,17 +22,9 @@ Requires Python 3.11+.
 
 ```python
 import asyncio
-from core import Agent, Distribution, Experiment
-from core.db.database import Database
-from core.repositories import RepoSet
-from core.simulation import Simulation
-from core.types import ExperimentConfig, JudgeConfig
+from patientzero import Agent, Distribution, Experiment, ExperimentConfig, JudgeConfig
 
-db = Database(":memory:")
-db.init()
-repos = RepoSet.for_db(db)
-
-cfg = ExperimentConfig(
+exp = Experiment(ExperimentConfig(
     name="demo",
     agents=(
         Agent(
@@ -52,23 +44,23 @@ cfg = ExperimentConfig(
         model=None,
     ),
     model="openai:gpt-4o",  # or "mock:default" for testing
-)
-exp = Experiment(cfg, repos).record
+))
 
-async def run():
-    sim = Simulation.create(
-        exp,
-        {"doctor": {"empathy": "empathetic"}, "patient": {"literacy": "low"}},
-        repos,
-        model="openai:gpt-4o",
-        max_turns=4,
-    )
-    await sim.run()
-    for step in sim.trace.steps:
-        print(f"[{step.agent_type}] {step.output[:100]}")
+async def main():
+    await exp.run(n=5)
+    print(exp.scores())
 
-asyncio.run(run())
-db.close()
+asyncio.run(main())
+```
+
+To persist results to disk:
+
+```python
+from patientzero.db.database import Database
+
+db = Database("experiments.db")
+db.init()
+exp = Experiment(config, db=db)
 ```
 
 ## Development setup
@@ -94,7 +86,7 @@ Open http://localhost:5173.
 
 **Run tests:**
 ```bash
-uv run python -m pytest core/tests/ backend/tests/ -v
+uv run python -m pytest patientzero/tests/ backend/tests/ -v
 ```
 
 ## LLM providers

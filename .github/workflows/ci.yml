@@ -27,7 +27,7 @@ jobs:
         run: uv sync --extra dev --extra backend
 
       - name: Run tests
-        run: uv run python -m pytest core/tests/ backend/tests/ -v
+        run: uv run python -m pytest patientzero/tests/ backend/tests/ -v
 
   build:
     runs-on: ubuntu-latest

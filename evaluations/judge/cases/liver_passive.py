@@ -1,5 +1,5 @@
 """Patient asks zero questions, gives minimal responses."""
-from core.types import Message, Transcript
+from patientzero.types import Message, Transcript
 
 LABEL = "Liver panel — passive patient, no questions"
 EXPECTED = {

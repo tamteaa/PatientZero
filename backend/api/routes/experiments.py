@@ -4,11 +4,11 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
 from backend.api.dependencies import repos
-from core import Experiment
-from core.analysis.coverage import compute_coverage
-from core.config.settings import APP_SETTINGS
-from core.examples.medical.config import MEDICAL_EXAMPLE_CONFIG
-from core.services.feedback import FeedbackService
+from patientzero import Experiment
+from patientzero.analysis.coverage import compute_coverage
+from patientzero.config.settings import APP_SETTINGS
+from patientzero.examples.medical.config import MEDICAL_EXAMPLE_CONFIG
+from patientzero.services.feedback import FeedbackService
 
 router = APIRouter()
 
@@ -37,7 +37,7 @@ def post_experiment(request: CreateExperimentRequest):
     from dataclasses import replace
     named_config = replace(config, name=request.name)
     try:
-        exp = Experiment(named_config, repos)
+        exp = Experiment(named_config, repos.experiments.db)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     record = exp.record

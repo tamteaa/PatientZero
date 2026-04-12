@@ -24,7 +24,7 @@ to be older; a rushed doctor is more likely to be in the ER.
 ## Defining a Distribution
 
 ```python
-from core.distribution import Distribution, Conditional
+from patientzero.distribution import Distribution, Conditional
 
 US_ADULT_PATIENT = Distribution(
     age={"young": 0.35, "middle": 0.40, "elderly": 0.25},

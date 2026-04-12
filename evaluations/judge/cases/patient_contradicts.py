@@ -1,5 +1,5 @@
 """Patient contradicts the doctor with misinformation."""
-from core.types import Message, Transcript
+from patientzero.types import Message, Transcript
 
 LABEL = "HbA1c — patient contradicts doctor with misinformation"
 EXPECTED = {

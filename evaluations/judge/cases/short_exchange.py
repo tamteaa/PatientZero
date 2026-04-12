@@ -1,5 +1,5 @@
 """Very short exchange — only 1 doctor turn, 1 patient response."""
-from core.types import Message, Transcript
+from patientzero.types import Message, Transcript
 
 LABEL = "Potassium — minimal exchange (2 turns)"
 EXPECTED = {

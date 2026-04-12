@@ -2,7 +2,7 @@ from dataclasses import asdict
 
 from fastapi import APIRouter
 
-from core.config.settings import APP_SETTINGS
+from patientzero.config.settings import APP_SETTINGS
 
 router = APIRouter()
 

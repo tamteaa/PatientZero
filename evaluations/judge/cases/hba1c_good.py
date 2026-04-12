@@ -1,4 +1,4 @@
-from core.types import Message, Transcript
+from patientzero.types import Message, Transcript
 
 LABEL = "HbA1c — good comprehension"
 EXPECTED = {

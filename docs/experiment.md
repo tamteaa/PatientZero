@@ -7,12 +7,12 @@ iterate on.
 ## Quick Start
 
 ```python
-from core.agent import Agent
-from core.distribution import Distribution, Conditional
-from core.experiment import Experiment
-from core.types import ExperimentConfig, JudgeConfig
-from core.repositories import RepoSet
-from core.db import Database
+from patientzero.agent import Agent
+from patientzero.distribution import Distribution, Conditional
+from patientzero.experiment import Experiment
+from patientzero.types import ExperimentConfig, JudgeConfig
+from patientzero.repositories import RepoSet
+from patientzero.db import Database
 
 db = Database("experiment.db")
 repos = RepoSet(db)

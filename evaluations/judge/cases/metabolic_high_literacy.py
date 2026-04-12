@@ -1,5 +1,5 @@
 """High-literacy patient who engages deeply and challenges the doctor."""
-from core.types import Message, Transcript
+from patientzero.types import Message, Transcript
 
 LABEL = "BMP — high literacy, deep engagement"
 EXPECTED = {

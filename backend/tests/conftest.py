@@ -1,10 +1,10 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from core.llm import factory as llm_factory
-from core.llm.mock import MockProvider
-from core.repositories import RepoSet
-from core.logger import SimulationLogger
+from patientzero.llm import factory as llm_factory
+from patientzero.llm.mock import MockProvider
+from patientzero.repositories import RepoSet
+from patientzero.logger import SimulationLogger
 
 
 @pytest.fixture

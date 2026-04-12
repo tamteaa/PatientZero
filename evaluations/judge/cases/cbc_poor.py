@@ -1,4 +1,4 @@
-from core.types import Message, Transcript
+from patientzero.types import Message, Transcript
 
 LABEL = "CBC — poor comprehension (catastrophizing)"
 EXPECTED = {

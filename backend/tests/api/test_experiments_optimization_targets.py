@@ -1,5 +1,5 @@
-from core import Agent, Distribution, Experiment
-from core.types import ExperimentConfig, JudgeConfig
+from patientzero import Agent, Distribution, Experiment
+from patientzero.types import ExperimentConfig, JudgeConfig
 
 
 def _other_config(name: str) -> ExperimentConfig:
@@ -36,8 +36,8 @@ def test_set_current_optimization_target(test_client, experiment):
     assert body["current_optimization_target_id"] == current_id
 
 
-def test_set_current_optimization_target_wrong_experiment(test_client, experiment, repos):
-    other = Experiment(_other_config("other"), repos).record
+def test_set_current_optimization_target_wrong_experiment(test_client, experiment, db):
+    other = Experiment(_other_config("other"), db).record
     other_target_id = other.current_optimization_target_id
     resp = test_client.post(
         f"/api/experiments/{experiment.id}/optimization-target/current",

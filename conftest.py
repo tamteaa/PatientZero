@@ -1,10 +1,10 @@
 import pytest
 
-from core import Agent, Distribution, Experiment
-from core.db.database import Database
-from core.llm.mock import MockProvider
-from core.repositories import RepoSet
-from core.types import ExperimentConfig, JudgeConfig
+from patientzero import Agent, Distribution, Experiment
+from patientzero.db.database import Database
+from patientzero.llm.mock import MockProvider
+from patientzero.repositories import RepoSet
+from patientzero.types import ExperimentConfig, JudgeConfig
 
 
 def _test_config() -> ExperimentConfig:
@@ -45,8 +45,8 @@ def repos(db):
 
 
 @pytest.fixture
-def experiment(repos):
-    return Experiment(_test_config(), repos).record
+def experiment(db):
+    return Experiment(_test_config(), db).record
 
 
 @pytest.fixture
