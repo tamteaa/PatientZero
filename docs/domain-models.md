@@ -1,113 +1,178 @@
 # Domain Models
 
-The shapes that everything else in PatientZero is built on. All dataclasses live under `core/types/` and are re-exported from `core/types/__init__.py`. Persistence schema lives in `core/db/schema.sql`.
+All types live under `core/types/` (re-exported from `core/types/__init__.py`)
+except `Agent`, `Distribution`, and `Judge` which are top-level in `core/`.
 
-## Entity relationships
+## Entity Graph
 
 ```
 Experiment ──1:N──▶ OptimizationTarget ──parent_id──▶ OptimizationTarget
      │                     ▲
-     │                     │ (current_optimization_target_id)
-     │                     │
-     └──1:N──▶ Simulation ──1:N──▶ SimulationTurn
-                   │
-                   └──1:N──▶ Evaluation ──N── JudgeResult (JSON)
+     │                     │ current_optimization_target_id
+     │
+     └──────1:N──▶ Simulation ──1:N──▶ SimulationTurn
+                       │
+                       └──1:N──▶ Evaluation ──embeds──▶ [JudgeResult]
 ```
-
-`Session` / `Turn` are a separate, older table pair used for the free-form chat UI and are not part of the experiment graph.
 
 ---
 
-## Experiment
+## Distribution
 
-`core/types/records.py::Experiment`
+`core/distribution.py` — a DAG of discrete trait nodes, topo-sorted at
+construction, sampled in causal order.
 
-The top-level container for a batch of simulations that share sampling distributions and an active optimization target.
-
-| field                             | type                    | notes                                                                 |
-| --------------------------------- | ----------------------- | --------------------------------------------------------------------- |
-| `id`                              | `str`                   | UUID                                                                  |
-| `name`                            | `str`                   |                                                                       |
-| `patient_distribution`            | `PatientDistribution`   | joint distribution over patient traits                                |
-| `doctor_distribution`             | `DoctorDistribution`    | joint distribution over doctor traits                                 |
-| `current_optimization_target_id`  | `str \| None`           | which target new simulations use                                      |
-| `sampling_seed`                   | `int \| None`           | set for reproducible draws                                            |
-| `sample_draw_index`               | `int`                   | incremented each draw so re-runs are deterministic but non-repeating  |
-
-`to_dict()` accepts a `counts` block (`total`, `completed`, `running`, `error`, `evaluated`) that the repository populates at read time — it isn't stored on the row.
-
-## Distributions
-
-`core/types/distribution.py`
-
-Sampling is done via causal chains of discrete distributions. `Distribution.weights` must sum to 1.0 (validated in `__post_init__`). `ConditionalDistribution` is `P(child | parent)`: one `Distribution` per parent value.
-
-**Patient chain:**
 ```
-age → education → literacy → tendency
-age → anxiety
+                  Marginal              Conditional
+               ┌────────────┐       ┌───────────────────┐
+               │ weights:    │       │ parent: "age"     │
+               │  young: 0.3 │       │ table:            │
+               │  old:   0.7 │       │   young:          │
+               └────────────┘       │     low:  0.2     │
+                                    │     high: 0.8     │
+                                    │   old:            │
+                                    │     low:  0.6     │
+                                    │     high: 0.4     │
+                                    └───────────────────┘
 ```
 
-**Doctor chain:**
-```
-setting → time_pressure → verbosity
-empathy → comprehension_checking
+Constructing a distribution:
+
+```python
+from core.distribution import Distribution, Conditional
+
+patient = Distribution(
+    age={"young": 0.3, "old": 0.7},
+    literacy=Conditional("age", {
+        "young": {"low": 0.2, "high": 0.8},
+        "old":   {"low": 0.6, "high": 0.4},
+    }),
+    anxiety=Conditional("age", {
+        "young": {"calm": 0.7, "anxious": 0.3},
+        "old":   {"calm": 0.4, "anxious": 0.6},
+    }),
+)
+
+patient.topo_order   # ('age', 'literacy', 'anxiety')
+patient.sample(rng)  # {'age': 'old', 'literacy': 'low', 'anxiety': 'anxious'}
 ```
 
-Each `XDistribution` dataclass exposes a `from_dict` classmethod; distributions are persisted as JSON blobs on the `experiments` row (`patient_distribution_json`, `doctor_distribution_json`).
+Sampling walks topo order — conditionals read already-sampled parent values.
+Constraints pin traits: `patient.sample(rng, literacy="low")` forces literacy
+and samples the rest normally.
+
+Key methods: `sample()`, `marginal(trait)`, `cells(*traits)`, `replace()`,
+`reweight()`. Serialized via `distribution_to_dict` / `distribution_from_dict`.
+
+---
+
+## Agent
+
+`core/agent.py` — binds a name, prompt template, and distribution together.
+
+```python
+from core.agent import Agent
+
+doctor = Agent(
+    name="doctor",
+    prompt="You are a {setting} doctor. Explain {scenario} to the patient.\n{profile}",
+    distribution=doctor_dist,
+    model="kimi:kimi-k2.5",   # optional per-agent override
+)
+
+traits = doctor.sample(rng)            # {'setting': 'ER', 'verbosity': 'terse', ...}
+prompt = doctor.render({**traits, "scenario": "CBC results"})
+doctor.prompt_fields                   # frozenset({'setting', 'scenario', 'profile'})
+```
+
+---
+
+## Judge
+
+`core/judge.py` — evaluates a transcript against a rubric.
+
+```python
+judge = Judge(
+    rubric={"comprehension": "Did the patient understand?", "clarity": "Was the doctor clear?"},
+    instructions="Score 1-5. Be strict on medical accuracy.",
+    model="kimi:kimi-k2.5",
+)
+
+result = await judge.evaluate(transcript)
+# JudgeResult(model="kimi-k2.5", scores={"comprehension": 4, "clarity": 3}, justification="...")
+```
+
+Builds a system prompt from the rubric, asks the LLM for JSON `{scores, justification}`.
+
+---
+
+## ExperimentConfig → ExperimentRecord
+
+`core/types/records.py`
+
+```
+ExperimentConfig (user input)         ExperimentRecord (persisted)
+┌──────────────────────────────┐     ┌──────────────────────────────────┐
+│ name: str                    │     │ id: str                          │
+│ agents: (Agent, ...)         │     │ created_at: str                  │
+│ judge: JudgeConfig           │     │ config: ExperimentConfig         │
+│ model: str                   │     │ current_optimization_target_id   │
+│ seed: int | None             │     │ sample_draw_index: int           │
+│ max_turns: int = 8           │     └──────────────────────────────────┘
+│ num_optimizations: int = 0   │
+└──────────────────────────────┘
+```
+
+`JudgeConfig`: `rubric: dict[str, str]`, `instructions: str`, `model: str | None`.
+
+---
 
 ## OptimizationTarget
 
-`core/types/feedback.py::OptimizationTarget`
+`core/types/feedback.py` — immutable, versioned prompt bundle.
 
-A versioned bundle of prompt strings that gets co-optimized by the feedback loop.
+```
+ target_v0 ◄──parent_id── target_v1 ◄──parent_id── target_v2
+ (seed)                   (optimized)               (optimized)
+                                                         ▲
+                                          experiment.current_optimization_target_id
+```
 
-| field           | type            | notes                                              |
-| --------------- | --------------- | -------------------------------------------------- |
-| `id`            | `str`           |                                                    |
-| `experiment_id` | `str`           | targets belong to exactly one experiment           |
-| `kind`          | `str`           | `"doctor_prompts"`, `"doctor_and_patient"`, etc.   |
-| `prompts`       | `dict[str,str]` | prompt name → template string                      |
-| `parent_id`     | `str \| None`   | lineage — points at the target this was evolved from |
+Fields: `id`, `experiment_id`, `kind`, `prompts: dict[str, str]`,
+`parent_id`, `created_at`.
 
-Targets are immutable. Each optimization cycle inserts a new row; `Experiment.current_optimization_target_id` moves forward if the new candidate beats the baseline.
+`prompts` maps agent name → prompt template string. Targets are never mutated;
+each optimization cycle inserts a new row.
 
-## Simulation
+---
 
-`core/types/records.py::SimulationRecord`
+## Simulation & SimulationTurn
 
-One doctor/patient/judge run. Links to the experiment and (optionally) the optimization target active when it ran, so results can be partitioned by target.
+`core/types/records.py`
 
-Key fields: `id`, `experiment_id`, `persona_name`, `scenario_name`, `model`, `state` (`running` / `completed` / `error`), `config_json`, `duration_ms`, `optimization_target_id`.
+`SimulationRecord`: `id`, `experiment_id`, `optimization_target_id`,
+`config_json` (sampled profiles + scenario), `state` (running/completed/error),
+`duration_ms`.
 
-## SimulationTurn
+`SimulationTurnRecord`: `simulation_id`, `turn_number`, `role` (user/assistant),
+`agent_type` (doctor/patient), `content`, `duration_ms`.
 
-`core/types/records.py::SimulationTurnRecord`
-
-Append-only per-turn log. `role` is the chat role (`user`/`assistant`); `agent_type` identifies which agent produced it (`doctor`/`patient`). `duration_ms` is per-turn latency.
+---
 
 ## Evaluation & JudgeResult
 
-`core/types/records.py::EvaluationRecord`, `core/types/judge_result.py::JudgeResult`
+`EvaluationRecord` stores a list of `JudgeResult`s as JSON. Keeping judge
+output denormalized means rubric shape can change without schema migrations.
 
-`EvaluationRecord` is a thin row that stores a list of `JudgeResult`s as JSON (`judge_results_json`). Keeping judge output denormalized means rubric shape can change without schema migrations. `experiment_id` is duplicated on the row to allow direct aggregation without joining through `simulations`.
-
----
-
-## Feedback-loop value types
-
-These live alongside `OptimizationTarget` in `core/types/feedback.py` and are in-memory only — they are the inputs and outputs of one optimize run, not persisted entities.
-
-- **`OptimizationMetric`** — weighted combination of `JudgeResult.scores` dimensions. `score(judge_result)` returns the weighted sum.
-- **`OptimizationConfig`** — knobs for one run: `metric`, `seeding_mode` (`HISTORICAL_FAILURES` or `FRESH_TRIALS`), `num_candidates`, `trials_per_candidate`, `worst_cases_k`.
-- **`FailureCase`** — one low-scoring simulation carried as DSPy context (scenario, patient traits, transcript, scores, judge justification).
-- **`FeedbackSignal`** — aggregated evidence feeding into optimization: `simulations_considered`, `mean_scores`, `worst_cases`.
-- **`OptimizationRequest`** = `current_target` + `signal` + `config`.
-- **`CandidateScore`** — a target plus its measured `mean_score` and `trial_count`.
-- **`OptimizationResult`** — `new_target`, `baseline`, all `candidates`, `improvement`, and the `signal` used. This is what the feedback API returns and what the Experiments UI renders.
+`JudgeResult`: `model`, `scores: dict[str, float | None]`, `justification`.
 
 ---
 
-## Chat (non-experiment) entities
+## Feedback Value Types
 
-`SessionRecord` and `TurnRecord` back the free-form chat UI. They have their own tables (`sessions`, `turns`) and are intentionally decoupled from experiments — no foreign keys into the experiment graph.
+In-memory only (not persisted), used during one optimize cycle:
+
+| Type | Role |
+|---|---|
+| `FeedbackTrace` | One sim's profiles + transcript + scores + justification |
+| `OptimizationResult` | new_target + previous_target + rationale + traces_considered |

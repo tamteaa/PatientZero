@@ -1,27 +1,100 @@
-# Generators
+# Distributions & Sampling
 
-Generators produce the two inputs a simulation needs: the **scenario** (what the doctor is explaining) and the **profiles** (who the doctor and patient are). They live in `core/generators/` and are pure producers — no DB, no agents, no experiment awareness.
+Simulations need two inputs: **who** (agent profiles) and **what**
+(the scenario). Both come from distributions declared on each `Agent`.
 
-## Scenarios
+## How Sampling Works
 
-Two flavors:
+Each `Agent` owns a `Distribution` — a DAG of discrete trait nodes.
+Traits are either unconditioned (`Marginal`) or depend on a parent
+trait (`Conditional`). The DAG is topo-sorted at construction and
+sampled in causal order.
 
-- **Static** — samples from six hardcoded test panels (CBC, BMP, Lipid, Thyroid, HbA1c, Liver). Each panel has reference ranges and per-component clinical significance strings; an `abnormal_ratio` knob controls how often values fall outside normal. Use this in tests and offline runs.
-- **LLM** — prompts any `LLMProvider` for a JSON array of scenarios. Use when you want variety the static panels can't cover.
+```
+  Patient Distribution                  Doctor Distribution
 
-The static generator is the default because it's fast, deterministic, and doesn't need API keys.
+  age ──────┬──▶ literacy               setting ──▶ time_pressure ──▶ verbosity
+            │
+            └──▶ anxiety                empathy ──▶ comprehension_checking
+```
 
-## Profiles
+This keeps profiles realistic: a low-literacy patient is more likely
+to be older; a rushed doctor is more likely to be in the ER.
 
-Patient and doctor profiles are **correlated**, not independent — traits are drawn through a causal chain so the combinations stay realistic. A low-literacy patient is more likely to be older and less educated; a rushed doctor is more likely to be in an ER setting.
+## Defining a Distribution
 
-The chains are grounded in real survey data:
+```python
+from core.distribution import Distribution, Conditional
 
-- **Patient**: NAAL (literacy given education), NHIS (anxiety given age), US Census (demographic groups for names).
-- **Doctor**: RIAS and CAHPS (physician communication distributions).
+US_ADULT_PATIENT = Distribution(
+    age={"young": 0.35, "middle": 0.40, "elderly": 0.25},
+    education=Conditional("age", {
+        "young":   {"high_school": 0.3, "college": 0.5, "graduate": 0.2},
+        "middle":  {"high_school": 0.4, "college": 0.4, "graduate": 0.2},
+        "elderly": {"high_school": 0.6, "college": 0.3, "graduate": 0.1},
+    }),
+    literacy=Conditional("education", {
+        "high_school": {"low": 0.5, "medium": 0.4, "high": 0.1},
+        "college":     {"low": 0.1, "medium": 0.5, "high": 0.4},
+        "graduate":    {"low": 0.05, "medium": 0.25, "high": 0.7},
+    }),
+    anxiety=Conditional("age", {
+        "young":   {"calm": 0.6, "moderate": 0.3, "anxious": 0.1},
+        "middle":  {"calm": 0.4, "moderate": 0.4, "anxious": 0.2},
+        "elderly": {"calm": 0.3, "moderate": 0.3, "anxious": 0.4},
+    }),
+)
+```
 
-Traits can be pinned at call time — e.g. force `literacy="low"` and the rest of the chain still samples conditionally on that. This is how UI filters like "only anxious patients" work without producing nonsense combinations.
+## Sampling with Constraints
+
+```python
+rng = random.Random(42)
+
+# unconstrained — full causal chain
+profile = dist.sample(rng)
+# {'age': 'elderly', 'education': 'high_school', 'literacy': 'low', 'anxiety': 'anxious'}
+
+# pinned — force literacy, rest samples normally
+profile = dist.sample(rng, literacy="low")
+# {'age': 'young', 'education': 'college', 'literacy': 'low', 'anxiety': 'calm'}
+```
+
+Constraints are how the API's `where` filter works — e.g. "only run
+anxious patients" without producing impossible trait combinations.
+
+## Introspection
+
+```python
+dist.traits          # ('age', 'education', 'literacy', 'anxiety')
+dist.topo_order      # same, but guaranteed causal order
+dist.support         # {'age': ['young', ...], 'literacy': ['low', ...], ...}
+dist.marginal('literacy')   # P(literacy) with ancestors integrated out
+dist.cells('age', 'literacy')  # exact joint: [((young, low), 0.06), ...]
+```
+
+## Mutation (Returns New Distribution)
+
+```python
+# replace one node
+new_dist = dist.replace("anxiety", {"calm": 0.5, "anxious": 0.5})
+
+# reweight a marginal (severs parent dependency)
+new_dist = dist.reweight("age", {"young": 0.5, "elderly": 0.5})
+```
 
 ## Reproducibility
 
-Every generator accepts an optional `random.Random`. The experiment runner hands one in per sample, seeded from the experiment's `sampling_seed`, so re-running an experiment produces the same sequence of scenarios and profiles. If you add a generator, thread the RNG through every random call — one stray `random.random()` breaks reproducibility for the whole chain.
+Experiments control reproducibility via `stable_rng(seed, draw_index)`
+from `core/sampling.py`. Each simulation gets its own deterministic RNG
+derived from the experiment seed + a monotonic counter. If you add
+sampling logic, thread the `rng` parameter — one stray `random.random()`
+call breaks reproducibility for the whole chain.
+
+## Data Sources
+
+The example medical distributions (`core/examples/medical/distributions.py`)
+are grounded in real survey data:
+
+- **Patient**: NAAL (literacy|education), NHIS (anxiety|age), US Census
+- **Doctor**: RIAS, CAHPS (physician communication patterns)
