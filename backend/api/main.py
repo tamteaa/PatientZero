@@ -11,7 +11,7 @@ logger = logging.getLogger("patientzero.api")
 
 from patientzero import Experiment
 from patientzero.config.settings import FRONTEND_URL
-from patientzero.examples.medical.config import MEDICAL_EXAMPLE_CONFIG
+from patientzero.examples.medical import MEDICAL_EXAMPLE_CONFIG
 from backend.api.dependencies import db, repos
 from backend.api.routes.agents import router as agents_router
 from backend.api.routes.analysis import router as analysis_router
@@ -24,11 +24,11 @@ from backend.api.routes.simulate import router as simulate_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db.init()
-    if not repos.experiments.list_all():
-        Experiment(MEDICAL_EXAMPLE_CONFIG, db)
+    await db.init()
+    if not await repos.experiments.list_all():
+        await Experiment.create(MEDICAL_EXAMPLE_CONFIG, db)
     yield
-    db.close()
+    await db.close()
 
 
 app = FastAPI(title="PatientZero", lifespan=lifespan)

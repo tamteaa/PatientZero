@@ -36,61 +36,64 @@ class UpdateSessionRequest(BaseModel):
 
 
 @router.get("/models")
-def get_available_models():
+async def get_available_models():
     return AVAILABLE_MODELS
 
 
 @router.post("/sessions")
-def create_new_session(request: CreateSessionRequest):
-    return create_session(db, request.model).to_dict()
+async def create_new_session(request: CreateSessionRequest):
+    session = await create_session(db, request.model)
+    return session.to_dict()
 
 
 @router.get("/sessions")
-def get_all_sessions():
-    return [s.to_dict() for s in list_sessions(db)]
+async def get_all_sessions():
+    sessions = await list_sessions(db)
+    return [s.to_dict() for s in sessions]
 
 
 @router.get("/sessions/{session_id}")
-def get_session_detail(session_id: str):
-    session = get_session(db, session_id)
+async def get_session_detail(session_id: str):
+    session = await get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    turns = get_turns(db, session_id)
+    turns = await get_turns(db, session_id)
     return {**session.to_dict(), "turns": [t.to_dict() for t in turns]}
 
 
 @router.patch("/sessions/{session_id}")
-def update_session(session_id: str, request: UpdateSessionRequest):
-    session = get_session(db, session_id)
+async def update_session(session_id: str, request: UpdateSessionRequest):
+    session = await get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    update_session_model(db, session_id, request.model)
-    return get_session(db, session_id).to_dict()
+    await update_session_model(db, session_id, request.model)
+    updated = await get_session(db, session_id)
+    return updated.to_dict()
 
 
 @router.delete("/sessions/{session_id}")
-def delete_session_endpoint(session_id: str):
-    session = get_session(db, session_id)
+async def delete_session_endpoint(session_id: str):
+    session = await get_session(db, session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    delete_session(db, session_id)
+    await delete_session(db, session_id)
     return {"ok": True}
 
 
 @router.post("/chat")
 async def chat(request: ChatRequest):
-    session = get_session(db, request.session_id)
+    session = await get_session(db, request.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    turn_number = get_turn_count(db, request.session_id)
-    create_turn(db, request.session_id, "user", request.message, turn_number)
+    turn_number = await get_turn_count(db, request.session_id)
+    await create_turn(db, request.session_id, "user", request.message, turn_number)
 
     if turn_number == 0:
         title = request.message[:50] + ("..." if len(request.message) > 50 else "")
-        update_session_title(db, request.session_id, title)
+        await update_session_title(db, request.session_id, title)
 
-    turns = get_turns(db, request.session_id)
+    turns = await get_turns(db, request.session_id)
     messages = [{"role": t.role, "content": t.content} for t in turns]
 
     provider, model = parse_provider_model(session.model)
@@ -101,7 +104,7 @@ async def chat(request: ChatRequest):
             async for chunk in provider.stream(messages, model):
                 full_response += chunk
                 yield {"data": json.dumps({"token": chunk})}
-            create_turn(db, request.session_id, "assistant", full_response, turn_number + 1)
+            await create_turn(db, request.session_id, "assistant", full_response, turn_number + 1)
             yield {"event": "done", "data": ""}
         except Exception as e:
             yield {"event": "error", "data": json.dumps({"error": str(e)})}

@@ -3,13 +3,11 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import { Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  getExperimentAnalysis,
   listExperiments,
   listOptimizationTargets,
   optimizeExperiment,
   setCurrentOptimizationTarget,
 } from '@/api/sessions';
-import type { ScoreStats } from '@/api/sessions';
 import { experimentsAtom } from '@/atoms/experiment';
 import { useError } from '@/contexts/ErrorContext';
 import type {
@@ -35,7 +33,6 @@ export function TargetsTab({ experimentId }: Props) {
   const setExperiments = useSetAtom(experimentsAtom);
   const experiment = experiments.find((e) => e.id === experimentId) ?? null;
   const [targets, setTargets] = useState<OptimizationTarget[]>([]);
-  const [scoresByTargetId, setScoresByTargetId] = useState<Record<string, ScoreStats>>({});
   const [loading, setLoading] = useState(false);
   const [activatingTargetId, setActivatingTargetId] = useState<string | null>(null);
   const [optimizing, setOptimizing] = useState(false);
@@ -46,18 +43,8 @@ export function TargetsTab({ experimentId }: Props) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [ts, analysis] = await Promise.all([
-        listOptimizationTargets(experimentId),
-        getExperimentAnalysis(experimentId),
-      ]);
+      const ts = await listOptimizationTargets(experimentId);
       setTargets(ts);
-      const allScores = analysis.by_optimization_target_id ?? {};
-      const targetIds = new Set(ts.map((t) => t.id));
-      const filtered: Record<string, ScoreStats> = {};
-      for (const [id, stats] of Object.entries(allScores)) {
-        if (targetIds.has(id)) filtered[id] = stats;
-      }
-      setScoresByTargetId(filtered);
     } catch (err) {
       handleError(err, 'Failed to load optimization targets');
     } finally {
@@ -73,6 +60,8 @@ export function TargetsTab({ experimentId }: Props) {
   const handleOptimize = async () => {
     setOptimizing(true);
     try {
+      // NOTE: backend /optimize currently ignores the request body.
+      // Options here are retained for future use.
       const result = await optimizeExperiment(experimentId, {
         seeding_mode: options.seeding_mode,
         num_candidates: options.num_candidates,
@@ -108,7 +97,6 @@ export function TargetsTab({ experimentId }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1 min-w-0">
           <h3 className="text-sm font-semibold">Optimization</h3>
@@ -139,7 +127,6 @@ export function TargetsTab({ experimentId }: Props) {
         onToggle={() => setOptionsExpanded((v) => !v)}
       />
 
-      {/* A + B + C: last-run result card */}
       {lastResult && (
         <OptimizationResultCard
           result={lastResult}
@@ -147,16 +134,13 @@ export function TargetsTab({ experimentId }: Props) {
         />
       )}
 
-      {/* G: current prompts with per-role tabs */}
       {currentTarget && <CurrentPromptsTabs target={currentTarget} />}
 
-      {/* D + E: scored + lineage version list */}
       <OptimizationTargetsList
         targets={targets}
         currentTargetId={currentTargetId}
         loading={loading}
         activatingTargetId={activatingTargetId}
-        scoresByTargetId={scoresByTargetId}
         onActivate={handleActivate}
       />
     </div>

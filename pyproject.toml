@@ -25,6 +25,7 @@ classifiers = [
 dependencies = [
   "python-dotenv>=1.0.0",
   "openai>=1.0.0",
+  "aiosqlite>=0.20.0",
 ]
 
 [project.optional-dependencies]
@@ -45,3 +46,6 @@ all = ["patientzero[backend]"]
 [tool.hatch.build.targets.wheel]
 packages = ["patientzero", "backend", "evaluations"]
 exclude = ["**/tests/**", "**/__pycache__"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

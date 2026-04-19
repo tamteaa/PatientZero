@@ -13,8 +13,7 @@ import {
   MessageSquare,
   Settings,
   LayoutDashboard,
-  Stethoscope,
-  User,
+  Bot,
   Gavel,
 } from 'lucide-react';
 import { listModels, listExperiments } from '@/api/sessions';
@@ -27,6 +26,7 @@ export function AppSidebar() {
   const [model, setModel] = useAtom(globalModelAtom);
   const [experiments, setExperiments] = useAtom(experimentsAtom);
   const [activeExperimentId, setActiveExperimentId] = useAtom(activeExperimentIdAtom);
+  const activeExperiment = experiments.find((e) => e.id === activeExperimentId) ?? null;
 
   useEffect(() => {
     if (models.length === 0) {
@@ -40,7 +40,6 @@ export function AppSidebar() {
     listExperiments()
       .then((exps) => {
         setExperiments(exps);
-        // If current active id is missing from the list, fall back to the first one (or null).
         if (!activeExperimentId || !exps.find((e) => e.id === activeExperimentId)) {
           setActiveExperimentId(exps[0]?.id ?? null);
         }
@@ -49,6 +48,7 @@ export function AppSidebar() {
   }, []);
 
   const hasExperiments = experiments.length > 0;
+  const agentNames = activeExperiment?.config.agents.map((a) => a.name) ?? [];
 
   return (
     <div className="flex h-full w-56 flex-col border-r border-border bg-muted/30">
@@ -63,15 +63,17 @@ export function AppSidebar() {
           disabled={!hasExperiments}
         >
           <SelectTrigger className="w-full h-8 text-xs">
-            <SelectValue placeholder={hasExperiments ? 'Select…' : 'No experiments'}>
-              {(value: string) =>
-                experiments.find((e) => e.id === value)?.name ?? (hasExperiments ? 'Select…' : 'No experiments')
-              }
+            <SelectValue>
+              {(value: string | null) => {
+                if (!value) return hasExperiments ? 'Select…' : 'No experiments';
+                const exp = experiments.find((e) => e.id === value);
+                return exp?.config.name ?? value;
+              }}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {experiments.map((e) => (
-              <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+              <SelectItem key={e.id} value={e.id}>{e.config.name}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -83,9 +85,23 @@ export function AppSidebar() {
           <div className="mt-2 px-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             Agents
           </div>
-          <NavItem to="/agents/doctor" icon={Stethoscope} label="Doctor" />
-          <NavItem to="/agents/patient" icon={User} label="Patient" />
-          <NavItem to="/agents/judge" icon={Gavel} label="Judge" />
+          {agentNames.length === 0 ? (
+            <p className="px-2 py-1 text-[11px] text-muted-foreground">
+              {hasExperiments ? 'No agents in this experiment.' : 'Create an experiment first.'}
+            </p>
+          ) : (
+            agentNames.map((name) => (
+              <NavItem
+                key={name}
+                to={`/agents/${name}`}
+                icon={Bot}
+                label={name.charAt(0).toUpperCase() + name.slice(1)}
+              />
+            ))
+          )}
+          {activeExperiment && (
+            <NavItem to="/agents/judge" icon={Gavel} label="Judge" />
+          )}
         </div>
       </ScrollArea>
       <div className="flex flex-col gap-0.5 px-2 pb-2">

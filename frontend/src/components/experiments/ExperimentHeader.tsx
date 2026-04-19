@@ -11,7 +11,7 @@ export function ExperimentHeader({ experiment, onDelete }: Props) {
   return (
     <div className="flex items-start justify-between gap-3 pb-3 border-b border-border">
       <div className="flex flex-col gap-1 min-w-0">
-        <h2 className="text-lg font-semibold truncate">{experiment.name}</h2>
+        <h2 className="text-lg font-semibold truncate">{experiment.config.name}</h2>
         <p className="text-xs text-muted-foreground">
           Created {new Date(experiment.created_at).toLocaleString()}
           {experiment.current_optimization_target_id && (

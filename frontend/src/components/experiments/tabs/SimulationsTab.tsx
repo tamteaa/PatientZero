@@ -13,12 +13,21 @@ import {
 import { globalModelAtom } from '@/atoms/model';
 import { useError } from '@/contexts/ErrorContext';
 import type { Evaluation, SimulationSummary } from '@/types/simulation';
-import { meanScore } from '@/types/simulation';
+import { meanOverallScore } from '@/types/simulation';
 
 interface Props {
   experimentId: string;
   refreshKey: number;
   onRefresh: () => void;
+}
+
+function summarizeProfiles(profiles: Record<string, Record<string, string>>): string {
+  const parts: string[] = [];
+  for (const [agent, traits] of Object.entries(profiles ?? {})) {
+    const traitSummary = Object.entries(traits).slice(0, 2).map(([k, v]) => `${k}=${v}`).join(',');
+    parts.push(traitSummary ? `${agent}(${traitSummary})` : agent);
+  }
+  return parts.join(' · ');
 }
 
 export function SimulationsTab({ experimentId, refreshKey, onRefresh }: Props) {
@@ -61,10 +70,9 @@ export function SimulationsTab({ experimentId, refreshKey, onRefresh }: Props) {
   }, [model, launching, experimentId, onRefresh, handleError]);
 
   const handleEvaluate = useCallback(async (simId: string) => {
-    if (!model) return;
     setEvaluating((prev) => new Set(prev).add(simId));
     try {
-      const result = await evaluateSimulation(simId, model);
+      const result = await evaluateSimulation(simId);
       setAllEvaluations((prev) => {
         const filtered = prev.filter((e) => e.simulation_id !== simId);
         return [result, ...filtered];
@@ -78,7 +86,7 @@ export function SimulationsTab({ experimentId, refreshKey, onRefresh }: Props) {
         return next;
       });
     }
-  }, [model, handleError]);
+  }, [handleError]);
 
   const handleDeleteSim = useCallback(async (simId: string) => {
     try {
@@ -90,7 +98,7 @@ export function SimulationsTab({ experimentId, refreshKey, onRefresh }: Props) {
   }, [handleError]);
 
   const simulations = useMemo(
-    () => allSimulations.filter((s) => s.experiment_id === experimentId),
+    () => allSimulations.filter((s) => s.config.experiment_id === experimentId),
     [allSimulations, experimentId],
   );
   const simIds = useMemo(() => new Set(simulations.map((s) => s.id)), [simulations]);
@@ -110,11 +118,13 @@ export function SimulationsTab({ experimentId, refreshKey, onRefresh }: Props) {
   const renderRow = (sim: SimulationSummary) => {
     const isEvaluating = evaluating.has(sim.id);
     const ev = evalBySim.get(sim.id);
-    const score = ev ? meanScore(ev, 'comprehension_score') : null;
+    const score = ev ? meanOverallScore(ev) : null;
     const hasEval = ev != null;
     const canEval = sim.state === 'completed';
     const isError = sim.state === 'error';
     const isRunning = sim.state === 'running' || sim.state === 'pending';
+    const label = summarizeProfiles(sim.config.profiles) || sim.id.slice(0, 8);
+    const modelLabel = sim.config.model;
 
     return (
       <div
@@ -135,13 +145,13 @@ export function SimulationsTab({ experimentId, refreshKey, onRefresh }: Props) {
           onClick={() => navigate(`/simulations/${sim.id}`)}
         >
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-medium truncate">{sim.persona_name}</span>
-            <span className="text-xs text-muted-foreground truncate">· {sim.scenario_name}</span>
+            <span className="text-sm font-medium truncate">{label}</span>
+            <span className="text-xs text-muted-foreground truncate">· {modelLabel}</span>
           </div>
         </button>
         <div className="shrink-0 w-16 text-right tabular-nums">
           {score != null ? (
-            <span className="text-sm font-medium">{score.toFixed(0)}</span>
+            <span className="text-sm font-medium">{score.toFixed(1)}</span>
           ) : isError ? (
             <span className="text-xs text-red-500">error</span>
           ) : (
@@ -154,7 +164,7 @@ export function SimulationsTab({ experimentId, refreshKey, onRefresh }: Props) {
               size="sm"
               variant={hasEval ? 'outline' : 'default'}
               className="h-7 text-xs gap-1"
-              disabled={!canEval || isEvaluating || !model}
+              disabled={!canEval || isEvaluating}
               onClick={(e) => { e.stopPropagation(); handleEvaluate(sim.id); }}
             >
               {isEvaluating ? (

@@ -23,20 +23,33 @@ import {
 } from '@/atoms/simulation';
 import type { SimulationMessage } from '@/types/simulation';
 
+const ROLE_STYLES: Array<[string, string, string]> = [
+  ['blue', 'text-blue-600 dark:text-blue-400', 'bg-blue-50 text-blue-950 dark:bg-blue-950/30 dark:text-blue-100'],
+  ['emerald', 'text-emerald-600 dark:text-emerald-400', 'bg-emerald-50 text-emerald-950 dark:bg-emerald-950/30 dark:text-emerald-100'],
+  ['amber', 'text-amber-700 dark:text-amber-300', 'bg-amber-50 text-amber-950 dark:bg-amber-950/30 dark:text-amber-100'],
+  ['purple', 'text-purple-600 dark:text-purple-400', 'bg-purple-50 text-purple-950 dark:bg-purple-950/30 dark:text-purple-100'],
+];
+
+function styleForRole(role: string): { label: string; text: string; bubble: string; alignStart: boolean } {
+  // Stable hash → index
+  let h = 0;
+  for (let i = 0; i < role.length; i++) h = (h * 31 + role.charCodeAt(i)) | 0;
+  const idx = Math.abs(h) % ROLE_STYLES.length;
+  const [, text, bubble] = ROLE_STYLES[idx];
+  return {
+    label: role.charAt(0).toUpperCase() + role.slice(1),
+    text,
+    bubble,
+    alignStart: idx % 2 === 0,
+  };
+}
+
 function MessageBubble({ message, isStreaming }: { message: SimulationMessage; isStreaming?: boolean }) {
-  const isDoctor = message.role === 'doctor';
+  const s = styleForRole(message.role);
   return (
-    <div className={`flex flex-col gap-1 ${isDoctor ? 'items-start' : 'items-end'}`}>
-      <span className={`text-xs font-medium ${isDoctor ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-        {isDoctor ? 'Doctor' : 'Patient'}
-      </span>
-      <div
-        className={`max-w-[85%] rounded-lg px-4 py-3 text-sm whitespace-pre-wrap ${
-          isDoctor
-            ? 'bg-blue-50 text-blue-950 dark:bg-blue-950/30 dark:text-blue-100'
-            : 'bg-emerald-50 text-emerald-950 dark:bg-emerald-950/30 dark:text-emerald-100'
-        }`}
-      >
+    <div className={`flex flex-col gap-1 ${s.alignStart ? 'items-start' : 'items-end'}`}>
+      <span className={`text-xs font-medium ${s.text}`}>{s.label}</span>
+      <div className={`max-w-[85%] rounded-lg px-4 py-3 text-sm whitespace-pre-wrap ${s.bubble}`}>
         {message.content}
         {isStreaming && <span className="inline-block w-1.5 h-4 ml-0.5 bg-current animate-pulse" />}
       </div>
@@ -45,11 +58,11 @@ function MessageBubble({ message, isStreaming }: { message: SimulationMessage; i
 }
 
 const statusColor: Record<string, string> = {
-  idle: 'bg-gray-100 text-gray-700',
-  running: 'bg-blue-100 text-blue-700',
-  paused: 'bg-yellow-100 text-yellow-700',
-  completed: 'bg-green-100 text-green-700',
-  error: 'bg-red-100 text-red-700',
+  idle: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200',
+  running: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200',
+  paused: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-200',
+  completed: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200',
+  error: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200',
 };
 
 export function SimulationDetailPage() {
@@ -203,16 +216,27 @@ export function SimulationDetailPage() {
       <div className="border-b border-border bg-muted/20 px-4 py-3">
         <div className="flex items-center justify-between">
           {detail && (
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
               <Badge className={statusColor[status] || ''}>{status}</Badge>
               {textStatus && (
                 <span className="font-medium text-foreground">{textStatus}</span>
               )}
-              <span>{detail.persona_name}</span>
-              <span>·</span>
-              <span>{detail.scenario_name}</span>
-              <span>·</span>
-              <span>{detail.model}</span>
+              <span className="font-mono">{detail.config.model}</span>
+              {Object.entries(detail.config.profiles ?? {}).map(([agent, traits]) => (
+                <span key={agent} className="flex items-center gap-1">
+                  <span>·</span>
+                  <span>
+                    <span className="font-medium text-foreground">{agent}</span>
+                    {Object.keys(traits).length > 0 && (
+                      <span>
+                        {' ('}
+                        {Object.entries(traits).slice(0, 3).map(([k, v]) => `${k}=${v}`).join(', ')}
+                        {')'}
+                      </span>
+                    )}
+                  </span>
+                </span>
+              ))}
               {!isActive && (
                 <>
                   <span>·</span>

@@ -34,24 +34,26 @@ class OptimizationTargetRepository(BaseRepository):
 
     # ── Reads ───────────────────────────────────────────────────────────────
 
-    def get(self, target_id: str) -> OptimizationTarget | None:
-        row = self.db.conn.execute(
+    async def get(self, target_id: str) -> OptimizationTarget | None:
+        async with self.db.conn.execute(
             "SELECT * FROM optimization_targets WHERE id = ?", (target_id,)
-        ).fetchone()
+        ) as cur:
+            row = await cur.fetchone()
         return self._hydrate(row)
 
-    def list_for_experiment(self, experiment_id: str) -> list[OptimizationTarget]:
-        rows = self.db.conn.execute(
+    async def list_for_experiment(self, experiment_id: str) -> list[OptimizationTarget]:
+        async with self.db.conn.execute(
             """SELECT * FROM optimization_targets
                 WHERE experiment_id = ?
              ORDER BY created_at DESC, rowid DESC""",
             (experiment_id,),
-        ).fetchall()
+        ) as cur:
+            rows = await cur.fetchall()
         return [r for r in (self._hydrate(row) for row in rows) if r is not None]
 
     # ── Writes ──────────────────────────────────────────────────────────────
 
-    def create(
+    async def create(
         self,
         experiment_id: str,
         kind: str,
@@ -59,23 +61,23 @@ class OptimizationTargetRepository(BaseRepository):
         parent_id: str | None = None,
     ) -> OptimizationTarget:
         target_id = str(uuid.uuid4())
-        self.db.execute(
+        await self.db.execute(
             """INSERT INTO optimization_targets
                  (id, experiment_id, kind, prompts_json, parent_id)
                VALUES (?, ?, ?, ?, ?)""",
             (target_id, experiment_id, kind, json.dumps(prompts), parent_id),
         )
-        created = self.get(target_id)
+        created = await self.get(target_id)
         assert created is not None
         return created
 
-    def seed_initial(
+    async def seed_initial(
         self,
         experiment_id: str,
         prompts: dict[str, str],
         kind: str = "agents",
     ) -> OptimizationTarget:
-        return self.create(
+        return await self.create(
             experiment_id=experiment_id,
             kind=kind,
             prompts=prompts,

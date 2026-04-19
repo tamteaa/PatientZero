@@ -1,17 +1,19 @@
-import type { ConditionalDistribution } from '@/types/simulation';
+import type { ConditionalNode } from '@/types/simulation';
 import { DistributionBars } from './DistributionBars';
 
 interface Props {
-  cond: ConditionalDistribution;
+  node: ConditionalNode;
 }
 
-export function ConditionalDistributionBlock({ cond }: Props) {
+export function ConditionalDistributionBlock({ node }: Props) {
   return (
     <div className="space-y-3">
-      {Object.entries(cond.by_parent).map(([parent, dist]) => (
-        <div key={parent} className="space-y-1">
-          <div className="text-xs font-medium">{parent}</div>
-          <DistributionBars dist={dist} />
+      {Object.entries(node.table).map(([parentValue, childWeights]) => (
+        <div key={parentValue} className="space-y-1">
+          <div className="text-xs font-medium">
+            {node.parent} = <span className="font-mono">{parentValue}</span>
+          </div>
+          <DistributionBars dist={{ weights: childWeights }} />
         </div>
       ))}
     </div>

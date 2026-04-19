@@ -6,7 +6,7 @@ import {
 } from '@/api/sessions';
 import { useError } from '@/contexts/ErrorContext';
 import type { CoverageReport, Evaluation, SimulationSummary } from '@/types/simulation';
-import { meanScore } from '@/types/simulation';
+import { meanOverallScore } from '@/types/simulation';
 
 interface Props {
   experimentId: string;
@@ -51,9 +51,9 @@ export function ExperimentSummary({ experimentId, refreshKey }: Props) {
 
   const completed = sims.filter((s) => s.state === 'completed');
   const evalMeans = evals
-    .map((e) => meanScore(e, 'comprehension_score'))
+    .map((e) => meanOverallScore(e))
     .filter((v): v is number => v != null);
-  const avgComprehension = evalMeans.length > 0
+  const avgScore = evalMeans.length > 0
     ? evalMeans.reduce((a, b) => a + b, 0) / evalMeans.length
     : null;
   const failed = sims.length - completed.length;
@@ -75,9 +75,9 @@ export function ExperimentSummary({ experimentId, refreshKey }: Props) {
             : '—'}
         />
         <StatCell
-          label="Avg compreh"
-          value={avgComprehension != null ? avgComprehension.toFixed(0) : '—'}
-          sub={evalMeans.length > 0 ? `from ${evalMeans.length} evals` : 'no evals yet'}
+          label="Avg score"
+          value={avgScore != null ? avgScore.toFixed(1) : '—'}
+          sub={evalMeans.length > 0 ? `across ${evalMeans.length} evals` : 'no evals yet'}
         />
         <StatCell
           label="Completion"

@@ -51,7 +51,7 @@ def _row_dims(row: dict, dims: set[str]) -> dict[str, list[float]]:
 # ── Row building ──────────────────────────────────────────────────────────────
 
 
-def _build_rows(experiment_id: str) -> tuple[list[dict], set[str]]:
+async def _build_rows(experiment_id: str) -> tuple[list[dict], set[str]]:
     """Join completed simulations with their evaluations and flatten per-dim scores.
 
     Each returned row has: ``profiles`` (dict[agent → trait dict]) plus every
@@ -59,7 +59,7 @@ def _build_rows(experiment_id: str) -> tuple[list[dict], set[str]]:
     judge_results for that dimension on that evaluation).
     Returns ``(rows, judge_dimensions)``.
     """
-    pairs = repos.evaluations.list_completed_with_evaluations_for_experiment(experiment_id)
+    pairs = await repos.evaluations.list_completed_with_evaluations_for_experiment(experiment_id)
     rows: list[dict] = []
     dims: set[str] = set()
     for sim, ev in pairs:
@@ -110,12 +110,12 @@ def _group_by_trait(
 
 
 @router.get("/experiments/{exp_id}/analysis")
-def get_experiment_analysis(exp_id: str):
-    experiment = repos.experiments.get(exp_id)
+async def get_experiment_analysis(exp_id: str):
+    experiment = await repos.experiments.get(exp_id)
     if experiment is None:
         raise HTTPException(status_code=404, detail="Experiment not found")
 
-    rows, dims = _build_rows(exp_id)
+    rows, dims = await _build_rows(exp_id)
     if not rows:
         return {
             "total_evaluations": 0,

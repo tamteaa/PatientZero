@@ -26,24 +26,24 @@ class FeedbackService:
         self.feedback = feedback or Feedback()
 
     async def optimize(self, experiment_id: str) -> OptimizationResult:
-        experiment = self.repos.experiments.get(experiment_id)
+        experiment = await self.repos.experiments.get(experiment_id)
         if experiment is None:
             raise ValueError(f"Experiment {experiment_id!r} not found")
 
-        current_target = self._require_current_target(experiment_id, experiment.current_optimization_target_id)
-        traces = self._build_traces(experiment_id)
+        current_target = await self._require_current_target(experiment_id, experiment.current_optimization_target_id)
+        traces = await self._build_traces(experiment_id)
         model = experiment.config.model
 
         new_prompts, rationale = await self.feedback.run(current_target, traces, model)
 
-        with self.repos.optimization_targets.transaction():
-            persisted = self.repos.optimization_targets.create(
+        async with self.repos.optimization_targets.transaction():
+            persisted = await self.repos.optimization_targets.create(
                 experiment_id=experiment_id,
                 kind=current_target.kind,
                 prompts=new_prompts,
                 parent_id=current_target.id,
             )
-            self.repos.experiments.set_current_optimization_target(experiment_id, persisted.id)
+            await self.repos.experiments.set_current_optimization_target(experiment_id, persisted.id)
 
         return OptimizationResult(
             new_target=persisted,
@@ -54,23 +54,23 @@ class FeedbackService:
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 
-    def _require_current_target(
+    async def _require_current_target(
         self,
         experiment_id: str,
         current_id: str | None,
     ) -> OptimizationTarget:
         if current_id is None:
             raise ValueError(f"Experiment {experiment_id!r} has no current optimization target")
-        target = self.repos.optimization_targets.get(current_id)
+        target = await self.repos.optimization_targets.get(current_id)
         if target is None:
             raise ValueError(f"Experiment {experiment_id!r} points at unknown target {current_id!r}")
         return target
 
-    def _build_traces(self, experiment_id: str) -> list[FeedbackTrace]:
-        pairs = self.repos.evaluations.list_completed_with_evaluations_for_experiment(experiment_id)
+    async def _build_traces(self, experiment_id: str) -> list[FeedbackTrace]:
+        pairs = await self.repos.evaluations.list_completed_with_evaluations_for_experiment(experiment_id)
         traces: list[FeedbackTrace] = []
         for sim, ev in pairs:
-            turns = self.repos.simulations.get_turns(sim.id)
+            turns = await self.repos.simulations.get_turns(sim.id)
             transcript = [Message(role=t.role, content=t.content) for t in turns]
             primary = ev.judge_results[0] if ev.judge_results else None
             traces.append(FeedbackTrace(

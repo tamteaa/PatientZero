@@ -6,7 +6,6 @@ from __future__ import annotations
 import json
 
 from patientzero.repositories.base import BaseRepository
-from patientzero.repositories.simulations import SimulationRepository
 from patientzero.types import EvaluationRecord, JudgeResult, SimulationConfig, SimulationRecord
 
 
@@ -30,30 +29,33 @@ class EvaluationRepository(BaseRepository):
 
     # ── Reads ───────────────────────────────────────────────────────────────
 
-    def get_latest_for_simulation(self, simulation_id: str) -> EvaluationRecord | None:
-        row = self.db.conn.execute(
+    async def get_latest_for_simulation(self, simulation_id: str) -> EvaluationRecord | None:
+        async with self.db.conn.execute(
             "SELECT * FROM evaluations WHERE simulation_id = ? ORDER BY id DESC LIMIT 1",
             (simulation_id,),
-        ).fetchone()
+        ) as cur:
+            row = await cur.fetchone()
         return self._hydrate(row)
 
-    def list_for_experiment(self, experiment_id: str) -> list[EvaluationRecord]:
-        rows = self.db.conn.execute(
+    async def list_for_experiment(self, experiment_id: str) -> list[EvaluationRecord]:
+        async with self.db.conn.execute(
             "SELECT * FROM evaluations WHERE experiment_id = ? ORDER BY created_at DESC",
             (experiment_id,),
-        ).fetchall()
+        ) as cur:
+            rows = await cur.fetchall()
         return [r for r in (self._hydrate(row) for row in rows) if r is not None]
 
-    def list_all(self) -> list[EvaluationRecord]:
-        rows = self.db.conn.execute(
+    async def list_all(self) -> list[EvaluationRecord]:
+        async with self.db.conn.execute(
             "SELECT * FROM evaluations ORDER BY created_at DESC"
-        ).fetchall()
+        ) as cur:
+            rows = await cur.fetchall()
         return [r for r in (self._hydrate(row) for row in rows) if r is not None]
 
-    def list_completed_with_evaluations_for_experiment(
+    async def list_completed_with_evaluations_for_experiment(
         self, experiment_id: str
     ) -> list[tuple[SimulationRecord, EvaluationRecord]]:
-        rows = self.db.conn.execute(
+        async with self.db.conn.execute(
             """SELECT s.id               AS sim_id,
                       s.experiment_id    AS sim_experiment_id,
                       s.config_json      AS sim_config_json,
@@ -72,7 +74,8 @@ class EvaluationRepository(BaseRepository):
                   AND s.state = 'completed'
              ORDER BY e.created_at DESC""",
             (experiment_id,),
-        ).fetchall()
+        ) as cur:
+            rows = await cur.fetchall()
         pairs: list[tuple[SimulationRecord, EvaluationRecord]] = []
         for r in rows:
             d = dict(r)
@@ -99,33 +102,33 @@ class EvaluationRepository(BaseRepository):
 
     # ── Writes ──────────────────────────────────────────────────────────────
 
-    def create_or_append(
+    async def create_or_append(
         self,
         simulation_id: str,
         experiment_id: str,
         judge_result: JudgeResult,
     ) -> EvaluationRecord:
-        existing = self.get_latest_for_simulation(simulation_id)
+        existing = await self.get_latest_for_simulation(simulation_id)
         results = existing.judge_results if existing else []
         results.append(judge_result)
         blob = json.dumps([j.to_dict() for j in results])
 
         if existing:
-            self.db.execute(
+            await self.db.execute(
                 "UPDATE evaluations SET judge_results_json = ? WHERE id = ?",
                 (blob, existing.id),
             )
         else:
-            self.db.execute(
+            await self.db.execute(
                 """INSERT INTO evaluations (simulation_id, experiment_id, judge_results_json)
                    VALUES (?, ?, ?)""",
                 (simulation_id, experiment_id, blob),
             )
-        result = self.get_latest_for_simulation(simulation_id)
+        result = await self.get_latest_for_simulation(simulation_id)
         assert result is not None
         return result
 
-    def delete_for_simulation(self, simulation_id: str) -> None:
-        self.db.execute(
+    async def delete_for_simulation(self, simulation_id: str) -> None:
+        await self.db.execute(
             "DELETE FROM evaluations WHERE simulation_id = ?", (simulation_id,)
         )

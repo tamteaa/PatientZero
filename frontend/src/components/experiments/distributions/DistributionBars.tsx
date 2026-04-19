@@ -1,7 +1,7 @@
-import type { Distribution } from '@/types/simulation';
+import type { MarginalNode } from '@/types/simulation';
 
 interface Props {
-  dist: Distribution;
+  dist: Pick<MarginalNode, 'weights'>;
 }
 
 export function DistributionBars({ dist }: Props) {

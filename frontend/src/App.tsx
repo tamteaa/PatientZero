@@ -18,9 +18,7 @@ function App() {
           <Route path="simulations/:simId" element={<SimulationDetailPage />} />
           <Route path="chat" element={<Chat />} />
           <Route path="experiments" element={<ExperimentsPage />} />
-          <Route path="agents/doctor" element={<AgentPage agent="doctor" />} />
-          <Route path="agents/patient" element={<AgentPage agent="patient" />} />
-          <Route path="agents/judge" element={<AgentPage agent="judge" />} />
+          <Route path="agents/:agentName" element={<AgentPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
 

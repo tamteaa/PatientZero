@@ -1,28 +1,19 @@
 import type { Session, SessionDetail } from '@/types/chat';
 import type {
-  AgentProfile,
+  AgentDistributionResponse,
   AppSettings,
   CoverageReport,
-  DoctorDistributionResponse,
   Evaluation,
   Experiment,
-  OptimizationTarget,
   OptimizationResult,
+  OptimizationTarget,
   OptimizeRequest,
-  PatientDistributionResponse,
-  Scenario,
-  SimulationConfig,
   SimulationDetail,
   SimulationRole,
   SimulationSummary,
+  StartSimulationRequest,
 } from '@/types/simulation';
-import type { AgentsConfig } from '@/types/agents';
 import { client, API_BASE } from './client';
-
-export async function getAgentsConfig(): Promise<AgentsConfig> {
-  const { data } = await client.get('/agents/config');
-  return data;
-}
 
 // ── Sessions ────────────────────────────────────────────────────────────────
 
@@ -50,7 +41,7 @@ export async function deleteSession(id: string): Promise<void> {
   await client.delete(`/sessions/${id}`);
 }
 
-// ── Models / Personas / Doctors / Scenarios / Styles ────────────────────────
+// ── Models / settings ───────────────────────────────────────────────────────
 
 export async function listModels(): Promise<string[]> {
   const { data } = await client.get('/models');
@@ -102,7 +93,6 @@ export async function getExperimentAnalysis(experimentId: string): Promise<Analy
 }
 
 export interface PatchExperimentRequest {
-  sampling_seed?: number | null;
   reset_sample_draw_index?: boolean;
 }
 
@@ -139,39 +129,29 @@ export async function setCurrentOptimizationTarget(
 
 // ── Distributions ───────────────────────────────────────────────────────────
 
-export async function getPatientDistribution(): Promise<PatientDistributionResponse> {
-  const { data } = await client.get('/distributions/patient');
+export async function getAgentDistribution(
+  experimentId: string,
+  agentName: string,
+): Promise<AgentDistributionResponse> {
+  const { data } = await client.get(
+    `/experiments/${experimentId}/distributions/${agentName}`,
+  );
   return data;
 }
 
-export async function getDoctorDistribution(): Promise<DoctorDistributionResponse> {
-  const { data } = await client.get('/distributions/doctor');
-  return data;
+// ── Experiment agents view ──────────────────────────────────────────────────
+
+export interface ExperimentAgentsResponse {
+  agents: Array<{ name: string; prompt: string; model: string | null }>;
+  judge: { rubric: Record<string, string>; instructions: string; model: string | null };
 }
 
-export async function listPersonas(): Promise<AgentProfile[]> {
-  const { data } = await client.get('/personas');
-  return data;
-}
-
-export async function listDoctors(): Promise<AgentProfile[]> {
-  const { data } = await client.get('/doctors');
-  return data;
-}
-
-export async function listScenarios(): Promise<Scenario[]> {
-  const { data } = await client.get('/scenarios');
-  return data;
-}
-
-export async function listStyles(): Promise<string[]> {
-  const { data } = await client.get('/styles');
+export async function getExperimentAgents(experimentId: string): Promise<ExperimentAgentsResponse> {
+  const { data } = await client.get(`/experiments/${experimentId}/agents`);
   return data;
 }
 
 // ── Simulations ─────────────────────────────────────────────────────────────
-// NOTE: the unscoped list endpoints (GET /simulations, GET /evaluations) have
-// been removed. Use listExperimentSimulations/listExperimentEvaluations above.
 
 export async function getSimulation(id: string): Promise<SimulationDetail> {
   const { data } = await client.get(`/simulations/${id}`);
@@ -194,8 +174,9 @@ export async function stopSimulation(id: string): Promise<void> {
   await client.post(`/simulations/${id}/stop`);
 }
 
-export async function evaluateSimulation(id: string, model: string): Promise<Evaluation> {
-  const { data } = await client.post(`/simulations/${id}/evaluate`, { model });
+/** Backend ignores any body on evaluate — judge is derived from the experiment's config. */
+export async function evaluateSimulation(id: string): Promise<Evaluation> {
+  const { data } = await client.post(`/simulations/${id}/evaluate`);
   return data;
 }
 
@@ -204,10 +185,7 @@ export async function getSimulationEvaluation(id: string): Promise<Evaluation | 
   return data;
 }
 
-export async function getAnalysis(): Promise<AnalysisResult> {
-  const { data } = await client.get('/analysis');
-  return data;
-}
+// ── Analysis (per-experiment) ───────────────────────────────────────────────
 
 export interface MetricStats {
   mean: number | null;
@@ -215,69 +193,15 @@ export interface MetricStats {
   n: number;
 }
 
-export interface ScoreStats {
-  comprehension_score: MetricStats;
-  factual_recall: MetricStats;
-  applied_reasoning: MetricStats;
-  explanation_quality: MetricStats;
-  interaction_quality: MetricStats;
-}
+/** Map from rubric metric name → stats bucket. */
+export type RubricStats = Record<string, MetricStats>;
 
-export type MetricKey = keyof ScoreStats;
-
-export interface EffectSizeTriple {
-  high_vs_low: number | null;
-  high_vs_moderate: number | null;
-  moderate_vs_low: number | null;
-}
-
-export interface VerbosityEffectTriple {
-  thorough_vs_terse: number | null;
-  thorough_vs_moderate: number | null;
-  moderate_vs_terse: number | null;
-}
-
-export interface GapGroupStats {
-  rate: number;
-  n: number;
-  n_gap: number;
-}
-
-export interface GapAnalysis {
-  total_with_gap: number;
-  gap_rate: number;
-  by_literacy: Record<string, GapGroupStats>;
-  by_scenario: Record<string, GapGroupStats>;
-  by_doctor_empathy: Record<string, GapGroupStats>;
-}
-
-export interface WorstCombo {
-  patient_literacy: string;
-  doctor_empathy: string;
-  doctor_verbosity: string;
-  scenario: string;
-  mean_comprehension: number;
-  scores: ScoreStats;
-  n: number;
-}
-
+/** Matches backend /experiments/{id}/analysis exactly. */
 export interface AnalysisResult {
   total_evaluations: number;
-  overall: ScoreStats;
-  by_patient_literacy: Record<string, ScoreStats>;
-  by_patient_anxiety: Record<string, ScoreStats>;
-  by_patient_age: Record<string, ScoreStats>;
-  by_doctor_empathy: Record<string, ScoreStats>;
-  by_doctor_verbosity: Record<string, ScoreStats>;
-  by_doctor_comprehension_checking: Record<string, ScoreStats>;
-  by_scenario: Record<string, ScoreStats>;
-  by_style?: Record<string, ScoreStats>;
-  by_policy_version?: Record<string, ScoreStats>;
-  by_experiment_id?: Record<string, ScoreStats>;
-  by_optimization_target_id?: Record<string, ScoreStats>;
-  effect_sizes: Record<string, Record<MetricKey, EffectSizeTriple | VerbosityEffectTriple>>;
-  gap_analysis: GapAnalysis;
-  worst_combinations: WorstCombo[];
+  overall: RubricStats;
+  /** Keyed as `${agent_name}.${trait_name}` → trait_value → per-metric stats. */
+  by_trait: Record<string, Record<string, RubricStats>>;
 }
 
 // ── Chat SSE ────────────────────────────────────────────────────────────────
@@ -301,53 +225,59 @@ export async function sendMessage(
   }
 
   const reader = response.body?.getReader();
-  if (!reader) return;
+  if (!reader) {
+    onDone();
+    return;
+  }
 
   const decoder = new TextDecoder();
   let buffer = '';
   let currentEvent = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
 
-    for (const line of lines) {
-      if (line.startsWith('event:')) {
-        currentEvent = line.slice(6).trim();
-        continue;
-      }
-      if (line.startsWith('data:')) {
-        const raw = line.slice(5).trim();
-        if (!raw) continue;
-        try {
-          const parsed = JSON.parse(raw);
-          if (currentEvent === 'error') {
-            onError?.(parsed.error ?? 'Unknown error');
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          currentEvent = line.slice(6).trim();
+          if (currentEvent === 'done') {
             onDone();
             return;
           }
-          if (parsed.token) onToken(parsed.token);
-        } catch {
-          // skip non-JSON data lines
+          continue;
         }
-        currentEvent = '';
-      }
-      if (line.startsWith('event: done')) {
-        onDone();
-        return;
+        if (line.startsWith('data:')) {
+          const raw = line.slice(5).trim();
+          if (!raw) continue;
+          try {
+            const parsed = JSON.parse(raw);
+            if (currentEvent === 'error') {
+              onError?.(parsed.error ?? 'Unknown error');
+              onDone();
+              return;
+            }
+            if (typeof parsed.token === 'string') onToken(parsed.token);
+          } catch {
+            // non-JSON data line, skip
+          }
+          currentEvent = '';
+        }
       }
     }
+  } finally {
+    onDone();
   }
-  onDone();
 }
 
-// ── Simulation ──────────────────────────────────────────────────────────────
+// ── Simulation streaming ────────────────────────────────────────────────────
 
-export async function startSimulation(config: SimulationConfig): Promise<string> {
+export async function startSimulation(config: StartSimulationRequest): Promise<string> {
   const { data } = await client.post('/simulate', config);
   return data.simulation_id;
 }
@@ -385,6 +315,10 @@ export function subscribeToSimulation(
       for (const line of lines) {
         if (line.startsWith('event:')) {
           currentEvent = line.slice(6).trim();
+          if (currentEvent === 'done') {
+            callbacks.onDone?.();
+            return;
+          }
           continue;
         }
         if (line.startsWith('data:')) {
@@ -396,9 +330,6 @@ export function subscribeToSimulation(
               callbacks.onTurnStart?.(parsed.role as SimulationRole, parsed.turn);
             } else if (currentEvent === 'turn_end') {
               callbacks.onTurnEnd?.(parsed.role as SimulationRole, parsed.turn);
-            } else if (currentEvent === 'done') {
-              callbacks.onDone?.();
-              return;
             } else if (parsed.token !== undefined) {
               callbacks.onToken?.(parsed.token);
             }

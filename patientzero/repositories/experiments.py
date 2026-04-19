@@ -38,39 +38,45 @@ class ExperimentRepository(BaseRepository):
 
     # ── Reads ───────────────────────────────────────────────────────────────
 
-    def get(self, experiment_id: str) -> ExperimentRecord | None:
-        row = self.db.conn.execute(
+    async def get(self, experiment_id: str) -> ExperimentRecord | None:
+        async with self.db.conn.execute(
             "SELECT * FROM experiments WHERE id = ?", (experiment_id,)
-        ).fetchone()
+        ) as cur:
+            row = await cur.fetchone()
         return self._hydrate(row)
 
-    def get_by_name(self, name: str) -> ExperimentRecord | None:
-        rows = self.db.conn.execute("SELECT * FROM experiments").fetchall()
+    async def get_by_name(self, name: str) -> ExperimentRecord | None:
+        async with self.db.conn.execute("SELECT * FROM experiments") as cur:
+            rows = await cur.fetchall()
         for row in rows:
             record = self._hydrate(row)
             if record is not None and record.config.name == name:
                 return record
         return None
 
-    def list_all(self) -> list[ExperimentRecord]:
-        rows = self.db.conn.execute(
+    async def list_all(self) -> list[ExperimentRecord]:
+        async with self.db.conn.execute(
             "SELECT * FROM experiments ORDER BY created_at DESC, rowid DESC"
-        ).fetchall()
+        ) as cur:
+            rows = await cur.fetchall()
         return [r for r in (self._hydrate(row) for row in rows) if r is not None]
 
-    def counts_for(self, experiment_id: str) -> dict:
-        rows = self.db.conn.execute(
+    async def counts_for(self, experiment_id: str) -> dict:
+        async with self.db.conn.execute(
             """SELECT state, COUNT(*) AS n
                  FROM simulations
                 WHERE experiment_id = ?
              GROUP BY state""",
             (experiment_id,),
-        ).fetchall()
+        ) as cur:
+            rows = await cur.fetchall()
         by_state = {r["state"]: r["n"] for r in rows}
-        evaluated = self.db.conn.execute(
+        async with self.db.conn.execute(
             "SELECT COUNT(*) FROM evaluations WHERE experiment_id = ?",
             (experiment_id,),
-        ).fetchone()[0]
+        ) as cur:
+            evaluated_row = await cur.fetchone()
+        evaluated = evaluated_row[0]
         return {
             "total": sum(by_state.values()),
             "completed": by_state.get("completed", 0),
@@ -79,18 +85,20 @@ class ExperimentRepository(BaseRepository):
             "evaluated": evaluated,
         }
 
-    def counts_all(self) -> dict[str, dict]:
-        sim_rows = self.db.conn.execute(
+    async def counts_all(self) -> dict[str, dict]:
+        async with self.db.conn.execute(
             """SELECT experiment_id, state, COUNT(*) AS n
                  FROM simulations
              GROUP BY experiment_id, state"""
-        ).fetchall()
-        eval_rows = self.db.conn.execute(
+        ) as cur:
+            sim_rows = await cur.fetchall()
+        async with self.db.conn.execute(
             """SELECT experiment_id, COUNT(*) AS n
                  FROM evaluations
                 WHERE experiment_id IS NOT NULL
              GROUP BY experiment_id"""
-        ).fetchall()
+        ) as cur:
+            eval_rows = await cur.fetchall()
         out: dict[str, dict] = {}
         for r in sim_rows:
             d = out.setdefault(r["experiment_id"], dict(_EMPTY_COUNTS))
@@ -103,80 +111,80 @@ class ExperimentRepository(BaseRepository):
 
     # ── Writes ──────────────────────────────────────────────────────────────
 
-    def create(self, config: ExperimentConfig) -> ExperimentRecord:
+    async def create(self, config: ExperimentConfig) -> ExperimentRecord:
         exp_id = str(uuid.uuid4())
-        self.db.execute(
+        await self.db.execute(
             "INSERT INTO experiments (id, config_json) VALUES (?, ?)",
             (exp_id, json.dumps(config.to_dict())),
         )
-        created = self.get(exp_id)
+        created = await self.get(exp_id)
         assert created is not None
         return created
 
-    def set_current_optimization_target(self, experiment_id: str, target_id: str) -> None:
-        self.db.execute(
+    async def set_current_optimization_target(self, experiment_id: str, target_id: str) -> None:
+        await self.db.execute(
             "UPDATE experiments SET current_optimization_target_id = ? WHERE id = ?",
             (target_id, experiment_id),
         )
 
-    def reset_sample_draw_index(self, experiment_id: str) -> None:
-        self.db.execute(
+    async def reset_sample_draw_index(self, experiment_id: str) -> None:
+        await self.db.execute(
             "UPDATE experiments SET sample_draw_index = 0 WHERE id = ?",
             (experiment_id,),
         )
 
-    def acquire_next_sample_rng(self, experiment_id: str):
+    async def acquire_next_sample_rng(self, experiment_id: str):
         """
         If the experiment's config has a seed, return a deterministic RNG for
         the next draw and atomically increment ``sample_draw_index``. Returns
         ``None`` if the experiment has no seed. Uses BEGIN IMMEDIATE so
         concurrent sim starts cannot reuse the same index.
         """
-        self.db.conn.execute("BEGIN IMMEDIATE")
+        await self.db.conn.execute("BEGIN IMMEDIATE")
         try:
-            row = self.db.conn.execute(
+            async with self.db.conn.execute(
                 "SELECT config_json, sample_draw_index FROM experiments WHERE id = ?",
                 (experiment_id,),
-            ).fetchone()
+            ) as cur:
+                row = await cur.fetchone()
             if not row:
-                self.db.conn.rollback()
+                await self.db.conn.rollback()
                 return None
             config = ExperimentConfig.from_dict(json.loads(row["config_json"]))
             if config.seed is None:
-                self.db.conn.rollback()
+                await self.db.conn.rollback()
                 return None
             idx = int(row["sample_draw_index"])
-            self.db.conn.execute(
+            await self.db.conn.execute(
                 "UPDATE experiments SET sample_draw_index = sample_draw_index + 1 WHERE id = ?",
                 (experiment_id,),
             )
-            self.db.conn.commit()
+            await self.db.conn.commit()
             return stable_rng(config.seed, idx)
         except Exception:
-            self.db.conn.rollback()
+            await self.db.conn.rollback()
             raise
 
-    def delete(self, experiment_id: str) -> None:
-        sim_ids = [
-            r["id"]
-            for r in self.db.conn.execute(
-                "SELECT id FROM simulations WHERE experiment_id = ?", (experiment_id,)
-            ).fetchall()
-        ]
-        with self.transaction():
+    async def delete(self, experiment_id: str) -> None:
+        async with self.db.conn.execute(
+            "SELECT id FROM simulations WHERE experiment_id = ?", (experiment_id,)
+        ) as cur:
+            sim_rows = await cur.fetchall()
+        sim_ids = [r["id"] for r in sim_rows]
+        async with self.transaction():
             for sid in sim_ids:
-                self.db.conn.execute(
+                await self.db.conn.execute(
                     "DELETE FROM simulation_turns WHERE simulation_id = ?", (sid,)
                 )
-                self.db.conn.execute(
+                await self.db.conn.execute(
                     "DELETE FROM evaluations WHERE simulation_id = ?", (sid,)
                 )
-            self.db.conn.execute(
+            await self.db.conn.execute(
                 "DELETE FROM simulations WHERE experiment_id = ?", (experiment_id,)
             )
-            self.db.conn.execute(
+            await self.db.conn.execute(
                 "DELETE FROM optimization_targets WHERE experiment_id = ?", (experiment_id,)
             )
-            self.db.conn.execute(
+            await self.db.conn.execute(
                 "DELETE FROM experiments WHERE id = ?", (experiment_id,)
             )

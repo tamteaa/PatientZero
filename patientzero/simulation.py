@@ -12,6 +12,7 @@ drive it synchronously.
 from __future__ import annotations
 
 import asyncio
+import inspect
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 from typing import ClassVar
@@ -76,7 +77,7 @@ class Simulation:
     # ── Class-level construction ────────────────────────────────────────────
 
     @classmethod
-    def create(
+    async def create(
         cls,
         experiment: ExperimentRecord,
         profiles: dict[str, dict[str, str]],
@@ -94,7 +95,7 @@ class Simulation:
         target_id = experiment.current_optimization_target_id
         if target_id is None:
             raise ValueError(f"Experiment {experiment.id} has no current optimization target")
-        target = repos.optimization_targets.get(target_id)
+        target = await repos.optimization_targets.get(target_id)
         if target is None:
             raise ValueError(f"Optimization target {target_id} not found")
 
@@ -106,7 +107,7 @@ class Simulation:
             max_turns=resolved_max_turns,
             draw_index=draw_index,
         )
-        sim_record = repos.simulations.create(sim_config)
+        sim_record = await repos.simulations.create(sim_config)
 
         merged_fields: dict[str, str] = {}
         for profile in profiles.values():
@@ -186,10 +187,12 @@ class Simulation:
         Simulation._active[self.sim_id] = self
         previous_on_done = self.on_done
 
-        def _cleanup() -> None:
+        async def _cleanup() -> None:
             Simulation._active.pop(self.sim_id, None)
             if previous_on_done:
-                previous_on_done()
+                result = previous_on_done()
+                if inspect.isawaitable(result):
+                    await result
 
         self.on_done = _cleanup
         self._task = asyncio.create_task(self._run_loop())
@@ -201,7 +204,9 @@ class Simulation:
         finally:
             self._broadcast(None)
             if self.on_done:
-                self.on_done()
+                result = self.on_done()
+                if inspect.isawaitable(result):
+                    await result
 
     def pause(self):
         if self.state != SimulationStatus.RUNNING:
@@ -273,14 +278,14 @@ class Simulation:
         finally:
             if self.state == SimulationStatus.COMPLETED:
                 self.text_status = f"Completed ({self._turn} turns)"
-                self.sim_repo.complete(self.sim_id, self.trace.duration_ms)
+                await self.sim_repo.complete(self.sim_id, self.trace.duration_ms)
             elif self.state == SimulationStatus.ERROR:
                 self.text_status = "Error"
-                self.sim_repo.fail(self.sim_id)
+                await self.sim_repo.fail(self.sim_id)
             else:
                 self.state = SimulationStatus.ERROR
                 self.text_status = "Error"
-                self.sim_repo.fail(self.sim_id)
+                await self.sim_repo.fail(self.sim_id)
         yield ("done", None)
 
     async def _stream_turn(
@@ -327,7 +332,7 @@ class Simulation:
         self.trace.add(step)
         self._turn += 1
 
-        self.sim_repo.add_turn(
+        await self.sim_repo.add_turn(
             simulation_id=self.sim_id,
             turn_number=current_turn,
             role=role.value,

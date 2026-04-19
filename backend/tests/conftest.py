@@ -1,5 +1,5 @@
-import pytest
-from fastapi.testclient import TestClient
+import httpx
+import pytest_asyncio
 
 from patientzero.llm import factory as llm_factory
 from patientzero.llm.mock import MockProvider
@@ -7,8 +7,8 @@ from patientzero.repositories import RepoSet
 from patientzero.logger import SimulationLogger
 
 
-@pytest.fixture
-def test_client(db):
+@pytest_asyncio.fixture
+async def test_client(db):
     import backend.api.main as main_module
     from backend.api.main import app
     import backend.api.dependencies
@@ -16,6 +16,8 @@ def test_client(db):
     import backend.api.routes.simulate as simulate_module
     import backend.api.routes.experiments as experiments_module
     import backend.api.routes.analysis as analysis_module
+    import backend.api.routes.agents as agents_module
+    import backend.api.routes.distributions as distributions_module
 
     original = {
         "deps_db": backend.api.dependencies.db,
@@ -28,6 +30,8 @@ def test_client(db):
         "simulate_logger": simulate_module.logger,
         "experiments_repos": experiments_module.repos,
         "analysis_repos": analysis_module.repos,
+        "agents_repos": agents_module.repos,
+        "distributions_repos": distributions_module.repos,
     }
 
     test_repos = RepoSet.for_db(db)
@@ -43,12 +47,15 @@ def test_client(db):
     simulate_module.logger = test_logger
     experiments_module.repos = test_repos
     analysis_module.repos = test_repos
+    agents_module.repos = test_repos
+    distributions_module.repos = test_repos
 
     # Seed the factory cache with a zero-delay mock so simulations
-    # complete fast enough for synchronous test polling.
+    # complete fast enough for polling.
     llm_factory._providers["mock"] = MockProvider(delay=0)
 
-    with TestClient(app) as client:
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 
     llm_factory._providers.pop("mock", None)
@@ -63,3 +70,5 @@ def test_client(db):
     simulate_module.logger = original["simulate_logger"]
     experiments_module.repos = original["experiments_repos"]
     analysis_module.repos = original["analysis_repos"]
+    agents_module.repos = original["agents_repos"]
+    distributions_module.repos = original["distributions_repos"]

@@ -1,4 +1,4 @@
-import pytest
+import pytest_asyncio
 
 from patientzero import Agent, Distribution, Experiment
 from patientzero.db.database import Database
@@ -31,24 +31,25 @@ def _test_config() -> ExperimentConfig:
     )
 
 
-@pytest.fixture
-def db(tmp_path):
+@pytest_asyncio.fixture
+async def db(tmp_path):
     test_db = Database(str(tmp_path / "test.db"))
-    test_db.init()
+    await test_db.init()
     yield test_db
-    test_db.close()
+    await test_db.close()
 
 
-@pytest.fixture
-def repos(db):
+@pytest_asyncio.fixture
+async def repos(db):
     return RepoSet.for_db(db)
 
 
-@pytest.fixture
-def experiment(db):
-    return Experiment(_test_config(), db).record
+@pytest_asyncio.fixture
+async def experiment(db):
+    exp = await Experiment.create(_test_config(), db)
+    return exp.record
 
 
-@pytest.fixture
-def mock_provider():
+@pytest_asyncio.fixture
+async def mock_provider():
     return MockProvider(delay=0)

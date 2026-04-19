@@ -1,14 +1,12 @@
 import { Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { OptimizationTarget } from '@/types/simulation';
-import type { ScoreStats } from '@/api/sessions';
 
 interface Props {
   targets: OptimizationTarget[];
   currentTargetId: string | null;
   loading: boolean;
   activatingTargetId: string | null;
-  scoresByTargetId: Record<string, ScoreStats>;
   onActivate: (targetId: string) => void;
 }
 
@@ -16,14 +14,9 @@ interface LineageNode {
   target: OptimizationTarget;
   depth: number;
   isLastChild: boolean;
-  hasSiblingBelow: boolean[];  // for each ancestor depth, whether there's a sibling line to draw
+  hasSiblingBelow: boolean[];
 }
 
-/**
- * Walk the parent→child tree in DFS order, tagging each node with its depth
- * and the path of "has sibling below" flags so we can draw connector lines.
- * Roots are ordered newest-first; children follow creation order.
- */
 function buildLineage(targets: OptimizationTarget[]): LineageNode[] {
   const childrenByParent = new Map<string | null, OptimizationTarget[]>();
   for (const t of targets) {
@@ -32,12 +25,10 @@ function buildLineage(targets: OptimizationTarget[]): LineageNode[] {
     list.push(t);
     childrenByParent.set(key, list);
   }
-  // Order children oldest-first so the chain reads top-to-bottom
   for (const list of childrenByParent.values()) {
     list.sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
-  // Roots: targets whose parent is null OR whose parent isn't in the set.
   const targetIds = new Set(targets.map((t) => t.id));
   const roots = targets
     .filter((t) => t.parent_id == null || !targetIds.has(t.parent_id))
@@ -83,7 +74,6 @@ export function OptimizationTargetsList({
   currentTargetId,
   loading,
   activatingTargetId,
-  scoresByTargetId,
   onActivate,
 }: Props) {
   if (loading && targets.length === 0) {
@@ -102,16 +92,6 @@ export function OptimizationTargetsList({
   }
 
   const nodes = buildLineage(targets);
-  const targetsById = new Map(targets.map((t) => [t.id, t]));
-
-  const meanFor = (id: string): number | null => {
-    const s = scoresByTargetId[id];
-    return s?.comprehension_score?.mean ?? null;
-  };
-  const nFor = (id: string): number => {
-    const s = scoresByTargetId[id];
-    return s?.comprehension_score?.n ?? 0;
-  };
 
   return (
     <div className="rounded-md border border-border bg-card overflow-hidden">
@@ -125,11 +105,6 @@ export function OptimizationTargetsList({
         {nodes.map((node) => {
           const t = node.target;
           const isCurrent = t.id === currentTargetId;
-          const mean = meanFor(t.id);
-          const n = nFor(t.id);
-          const parent = t.parent_id ? targetsById.get(t.parent_id) : null;
-          const parentMean = parent ? meanFor(parent.id) : null;
-          const delta = mean != null && parentMean != null ? mean - parentMean : null;
 
           return (
             <li
@@ -155,30 +130,6 @@ export function OptimizationTargetsList({
                   <div className="text-[11px] text-muted-foreground tabular-nums mt-0.5">
                     {new Date(t.created_at).toLocaleString()}
                   </div>
-                </div>
-
-                <div className="shrink-0 text-right tabular-nums min-w-[90px]">
-                  {mean != null ? (
-                    <>
-                      <div className="text-sm font-semibold">{mean.toFixed(1)}</div>
-                      <div className="text-[10px] text-muted-foreground">mean · n={n}</div>
-                    </>
-                  ) : (
-                    <div className="text-[11px] text-muted-foreground italic">no evals</div>
-                  )}
-                </div>
-
-                <div className="shrink-0 text-right tabular-nums min-w-[70px]">
-                  {delta != null ? (
-                    <span
-                      className={`text-xs font-medium ${delta > 0.5 ? 'text-emerald-600 dark:text-emerald-400' : delta < -0.5 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}
-                    >
-                      {delta >= 0 ? '+' : ''}{delta.toFixed(1)}
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-muted-foreground">—</span>
-                  )}
-                  <div className="text-[10px] text-muted-foreground">vs parent</div>
                 </div>
 
                 <div className="shrink-0">

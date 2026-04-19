@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 @router.get("/models")
-def get_models():
+async def get_models():
     return AVAILABLE_MODELS
 
 
@@ -53,11 +53,11 @@ async def simulate(request: SimulateRequest):
     if request.model not in AVAILABLE_MODELS:
         raise HTTPException(status_code=400, detail="Unknown model")
 
-    experiment = repos.experiments.get(request.experiment_id)
+    experiment = await repos.experiments.get(request.experiment_id)
     if not experiment:
         raise HTTPException(status_code=404, detail="Experiment not found")
 
-    sample_rng = repos.experiments.acquire_next_sample_rng(request.experiment_id)
+    sample_rng = await repos.experiments.acquire_next_sample_rng(request.experiment_id)
     draw_index = experiment.sample_draw_index if sample_rng is not None else None
 
     try:
@@ -77,7 +77,7 @@ async def simulate(request: SimulateRequest):
             detail=f"Max concurrent simulations reached ({APP_SETTINGS.max_concurrent_simulations})",
         )
 
-    sim = Simulation.create(
+    sim = await Simulation.create(
         experiment,
         profiles,
         repos,
@@ -88,8 +88,8 @@ async def simulate(request: SimulateRequest):
     )
     prior_on_done = sim.on_done
 
-    def _finalize_log() -> None:
-        final = repos.simulations.get(sim.sim_id)
+    async def _finalize_log() -> None:
+        final = await repos.simulations.get(sim.sim_id)
         logger.close(
             sim.sim_id,
             state=final.state if final else "error",
@@ -162,11 +162,11 @@ async def stop_simulation(sim_id: str):
 
 
 @router.get("/simulations/{sim_id}")
-def get_simulation_detail(sim_id: str):
-    simulation = repos.simulations.get(sim_id)
+async def get_simulation_detail(sim_id: str):
+    simulation = await repos.simulations.get(sim_id)
     if not simulation:
         raise HTTPException(status_code=404, detail="Simulation not found")
-    turns = repos.simulations.get_turns(sim_id)
+    turns = await repos.simulations.get_turns(sim_id)
     result = {**simulation.to_dict(), "turns": [t.to_dict() for t in turns]}
     active = Simulation.get_active(sim_id)
     if active:
@@ -177,11 +177,11 @@ def get_simulation_detail(sim_id: str):
 
 
 @router.delete("/simulations/{sim_id}")
-def delete_simulation_endpoint(sim_id: str):
-    simulation = repos.simulations.get(sim_id)
+async def delete_simulation_endpoint(sim_id: str):
+    simulation = await repos.simulations.get(sim_id)
     if not simulation:
         raise HTTPException(status_code=404, detail="Simulation not found")
-    repos.simulations.delete(sim_id)
+    await repos.simulations.delete(sim_id)
     return {"ok": True}
 
 
@@ -190,17 +190,17 @@ def delete_simulation_endpoint(sim_id: str):
 
 @router.post("/simulations/{sim_id}/evaluate")
 async def evaluate_simulation(sim_id: str):
-    simulation = repos.simulations.get(sim_id)
+    simulation = await repos.simulations.get(sim_id)
     if not simulation:
         raise HTTPException(status_code=404, detail="Simulation not found")
     if simulation.state != "completed":
         raise HTTPException(status_code=400, detail="Simulation must be completed before evaluation")
 
-    experiment = repos.experiments.get(simulation.config.experiment_id)
+    experiment = await repos.experiments.get(simulation.config.experiment_id)
     if not experiment:
         raise HTTPException(status_code=404, detail="Parent experiment not found")
 
-    turns = repos.simulations.get_turns(sim_id)
+    turns = await repos.simulations.get_turns(sim_id)
     transcript = Transcript(messages=[Message(role=t.role, content=t.content) for t in turns])
 
     jc = experiment.config.judge
@@ -211,8 +211,8 @@ async def evaluate_simulation(sim_id: str):
     )
     result = await judge.evaluate(transcript)
 
-    repos.evaluations.delete_for_simulation(sim_id)
-    evaluation = repos.evaluations.create_or_append(
+    await repos.evaluations.delete_for_simulation(sim_id)
+    evaluation = await repos.evaluations.create_or_append(
         simulation_id=sim_id,
         experiment_id=experiment.id,
         judge_result=result,
@@ -221,9 +221,9 @@ async def evaluate_simulation(sim_id: str):
 
 
 @router.get("/simulations/{sim_id}/evaluation")
-def get_simulation_evaluation(sim_id: str):
-    simulation = repos.simulations.get(sim_id)
+async def get_simulation_evaluation(sim_id: str):
+    simulation = await repos.simulations.get(sim_id)
     if not simulation:
         raise HTTPException(status_code=404, detail="Simulation not found")
-    evaluation = repos.evaluations.get_latest_for_simulation(sim_id)
+    evaluation = await repos.evaluations.get_latest_for_simulation(sim_id)
     return evaluation.to_dict() if evaluation else None

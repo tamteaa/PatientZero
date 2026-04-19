@@ -7,8 +7,8 @@ router = APIRouter()
 
 
 @router.get("/experiments/{exp_id}/distributions/{agent_name}")
-def get_agent_distribution(exp_id: str, agent_name: str):
-    experiment = repos.experiments.get(exp_id)
+async def get_agent_distribution(exp_id: str, agent_name: str):
+    experiment = await repos.experiments.get(exp_id)
     if experiment is None:
         raise HTTPException(status_code=404, detail="Experiment not found")
     try:

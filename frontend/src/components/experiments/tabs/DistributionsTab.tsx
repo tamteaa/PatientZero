@@ -1,24 +1,39 @@
 import { useEffect, useState } from 'react';
 import { useAtomValue } from 'jotai';
-import { getPatientDistribution } from '@/api/sessions';
+import { getAgentDistribution } from '@/api/sessions';
 import { experimentsAtom } from '@/atoms/experiment';
-import { PatientDistributionCard } from '../distributions/PatientDistributionCard';
-import { DoctorDistributionCard } from '../distributions/DoctorDistributionCard';
+import { useError } from '@/contexts/ErrorContext';
+import type { AgentDistribution } from '@/types/simulation';
+import { AgentDistributionCard } from '../distributions/AgentDistributionCard';
 
 interface Props {
   experimentId: string;
 }
 
 export function DistributionsTab({ experimentId }: Props) {
+  const { handleError } = useError();
   const experiments = useAtomValue(experimentsAtom);
   const experiment = experiments.find((e) => e.id === experimentId) ?? null;
-  const [ageRanges, setAgeRanges] = useState<Record<string, [number, number]>>({});
+  const [fetched, setFetched] = useState<Record<string, AgentDistribution>>({});
 
   useEffect(() => {
-    getPatientDistribution()
-      .then((r) => setAgeRanges(r.age_bucket_ranges))
-      .catch(() => {});
-  }, []);
+    if (!experiment) return;
+    setFetched({});
+    Promise.all(
+      experiment.config.agents.map((a) =>
+        getAgentDistribution(experimentId, a.name)
+          .then((r) => [a.name, r.distribution] as const)
+          .catch((err) => {
+            handleError(err, `Failed to load distribution for ${a.name}`);
+            return null;
+          }),
+      ),
+    ).then((pairs) => {
+      const next: Record<string, AgentDistribution> = {};
+      for (const p of pairs) if (p) next[p[0]] = p[1];
+      setFetched(next);
+    });
+  }, [experimentId, experiment?.config.agents.length]);
 
   if (!experiment) {
     return <p className="text-xs text-muted-foreground">Loading distributions…</p>;
@@ -32,8 +47,16 @@ export function DistributionsTab({ experimentId }: Props) {
           Profiles for simulations in this experiment are sampled from these tables.
         </p>
       </div>
-      <PatientDistributionCard dist={experiment.patient_distribution} ageRanges={ageRanges} />
-      <DoctorDistributionCard dist={experiment.doctor_distribution} />
+      {experiment.config.agents.map((a) => {
+        const dist = fetched[a.name] ?? a.distribution;
+        return (
+          <AgentDistributionCard
+            key={a.name}
+            agentName={a.name}
+            distribution={dist}
+          />
+        );
+      })}
     </div>
   );
 }

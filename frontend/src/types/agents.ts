@@ -1,25 +1,3 @@
-export interface AgentVariable {
-  name: string;
-  source: string;
-  description: string;
-}
-
-export interface AgentConfig {
-  name: string;
-  template: string;
-  variables: AgentVariable[];
-  extras: {
-    styles?: Record<string, string>;
-    policies?: Record<string, string>;
-    profile_block?: string;
-  };
-  model_note: string;
-}
-
-export interface AgentsConfig {
-  doctor: AgentConfig;
-  patient: AgentConfig;
-  judge: AgentConfig;
-}
-
-export type AgentName = keyof AgentsConfig;
+// Kept intentionally minimal — agent config is now read from
+// `ExperimentAgentsResponse` in @/api/sessions, which mirrors what the
+// backend actually returns for GET /experiments/{id}/agents.

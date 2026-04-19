@@ -33,33 +33,36 @@ class SimulationRepository(BaseRepository):
 
     # ── Reads ───────────────────────────────────────────────────────────────
 
-    def get(self, simulation_id: str) -> SimulationRecord | None:
-        row = self.db.conn.execute(
+    async def get(self, simulation_id: str) -> SimulationRecord | None:
+        async with self.db.conn.execute(
             "SELECT * FROM simulations WHERE id = ?", (simulation_id,)
-        ).fetchone()
+        ) as cur:
+            row = await cur.fetchone()
         return self._hydrate(row)
 
-    def list_for_experiment(self, experiment_id: str) -> list[SimulationRecord]:
-        rows = self.db.conn.execute(
+    async def list_for_experiment(self, experiment_id: str) -> list[SimulationRecord]:
+        async with self.db.conn.execute(
             """SELECT * FROM simulations
                 WHERE experiment_id = ?
              ORDER BY created_at DESC, rowid DESC""",
             (experiment_id,),
-        ).fetchall()
+        ) as cur:
+            rows = await cur.fetchall()
         return [r for r in (self._hydrate(row) for row in rows) if r is not None]
 
-    def get_turns(self, simulation_id: str) -> list[SimulationTurnRecord]:
-        rows = self.db.conn.execute(
+    async def get_turns(self, simulation_id: str) -> list[SimulationTurnRecord]:
+        async with self.db.conn.execute(
             "SELECT * FROM simulation_turns WHERE simulation_id = ? ORDER BY turn_number",
             (simulation_id,),
-        ).fetchall()
+        ) as cur:
+            rows = await cur.fetchall()
         return [self._hydrate_turn(r) for r in rows]
 
     # ── Writes ──────────────────────────────────────────────────────────────
 
-    def create(self, config: SimulationConfig) -> SimulationRecord:
+    async def create(self, config: SimulationConfig) -> SimulationRecord:
         sim_id = str(uuid.uuid4())
-        self.db.execute(
+        await self.db.execute(
             """INSERT INTO simulations
                  (id, experiment_id, optimization_target_id, config_json)
                VALUES (?, ?, ?, ?)""",
@@ -70,25 +73,25 @@ class SimulationRepository(BaseRepository):
                 json.dumps(config.to_dict()),
             ),
         )
-        created = self.get(sim_id)
+        created = await self.get(sim_id)
         assert created is not None
         return created
 
-    def complete(self, simulation_id: str, duration_ms: float) -> None:
-        self.db.execute(
+    async def complete(self, simulation_id: str, duration_ms: float) -> None:
+        await self.db.execute(
             """UPDATE simulations
                   SET state = 'completed', duration_ms = ?, completed_at = datetime('now')
                 WHERE id = ?""",
             (duration_ms, simulation_id),
         )
 
-    def fail(self, simulation_id: str) -> None:
-        self.db.execute(
+    async def fail(self, simulation_id: str) -> None:
+        await self.db.execute(
             "UPDATE simulations SET state = 'error' WHERE id = ?",
             (simulation_id,),
         )
 
-    def add_turn(
+    async def add_turn(
         self,
         simulation_id: str,
         turn_number: int,
@@ -97,21 +100,21 @@ class SimulationRepository(BaseRepository):
         content: str,
         duration_ms: float,
     ) -> None:
-        self.db.execute(
+        await self.db.execute(
             """INSERT INTO simulation_turns
                  (simulation_id, turn_number, role, agent_type, content, duration_ms)
                VALUES (?, ?, ?, ?, ?, ?)""",
             (simulation_id, turn_number, role, agent_type, content, duration_ms),
         )
 
-    def delete(self, simulation_id: str) -> None:
-        with self.transaction():
-            self.db.conn.execute(
+    async def delete(self, simulation_id: str) -> None:
+        async with self.transaction():
+            await self.db.conn.execute(
                 "DELETE FROM simulation_turns WHERE simulation_id = ?", (simulation_id,)
             )
-            self.db.conn.execute(
+            await self.db.conn.execute(
                 "DELETE FROM evaluations WHERE simulation_id = ?", (simulation_id,)
             )
-            self.db.conn.execute(
+            await self.db.conn.execute(
                 "DELETE FROM simulations WHERE id = ?", (simulation_id,)
             )

@@ -1,4 +1,5 @@
 import { atom } from 'jotai';
-import type { AgentsConfig } from '@/types/agents';
+import type { ExperimentAgentsResponse } from '@/api/sessions';
 
-export const agentsConfigAtom = atom<AgentsConfig | null>(null);
+/** Cache of the active experiment's agents, keyed by experiment id. */
+export const agentsConfigAtom = atom<ExperimentAgentsResponse | null>(null);
